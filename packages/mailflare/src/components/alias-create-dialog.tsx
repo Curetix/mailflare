@@ -2,6 +2,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { NumberInput } from "@astryxdesign/core/NumberInput";
 import { Selector } from "@astryxdesign/core/Selector";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -300,161 +301,176 @@ export function AliasCreateDialog({ open, onClose }: Props) {
 
     return (
         <Dialog isOpen={open} onOpenChange={handleOpenChange} purpose="form" width={440}>
-            <DialogHeader title={t("title")} onOpenChange={handleOpenChange} />
-            <form onSubmit={handleSubmit(onSubmit)}>
-                <VStack gap={3} padding={4}>
-                    <Selector
-                        label={t("domain")}
-                        options={domainOptions}
-                        value={watchAll.domain || undefined}
-                        onChange={(v) => setValue("domain", v)}
-                        placeholder={t("domain")}
-                        status={
-                            errors.domain
-                                ? { type: "error", message: errors.domain.message }
-                                : undefined
-                        }
-                    />
-
-                    <Selector
-                        label={t("alias_format")}
-                        options={formatOptions}
-                        value={watchAll.format}
-                        onChange={(v) => setValue("format", v as typeof watchAll.format)}
-                    />
-
-                    {watchAll.format === "characters" && (
-                        <Controller
-                            name="characterCount"
-                            control={control}
-                            render={({ field }) => (
-                                <NumberInput
-                                    label={t("number_of_chars")}
-                                    value={field.value}
-                                    onChange={field.onChange}
-                                    min={3}
-                                    max={25}
+            {/* display: contents keeps the form out of the layout, so the Layout below
+                still fills the dialog and its content region scrolls. The submit button
+                lives in the footer slot but stays inside the form. */}
+            <form onSubmit={handleSubmit(onSubmit)} style={{ display: "contents" }}>
+                <Layout
+                    header={<DialogHeader title={t("title")} onOpenChange={handleOpenChange} />}
+                    footer={
+                        <LayoutFooter hasDivider>
+                            <HStack gap={2} width="100%">
+                                <Button
+                                    label={t("save_settings")}
+                                    width="100%"
+                                    onClick={saveSettings}
                                 />
-                            )}
-                        />
-                    )}
-
-                    {watchAll.format === "words" && (
-                        <Controller
-                            name="wordCount"
-                            control={control}
-                            render={({ field }) => (
-                                <NumberInput
-                                    label={t("number_of_words")}
-                                    value={field.value}
-                                    onChange={field.onChange}
-                                    min={1}
-                                    max={5}
+                                <Button
+                                    type="submit"
+                                    variant="primary"
+                                    label={tc("create")}
+                                    width="100%"
+                                    isLoading={createEmailRule.isPending}
+                                    isDisabled={previewExists || !aliasPreview || !isOnline}
+                                    tooltip={!isOnline ? tc("offline") : undefined}
                                 />
-                            )}
-                        />
-                    )}
-
-                    {watchAll.format === "custom" && (
-                        <Controller
-                            name="customAlias"
-                            control={control}
-                            render={({ field }) => (
-                                <TextInput
-                                    label={t("custom_alias")}
-                                    value={field.value}
-                                    onChange={(value) => field.onChange(value)}
-                                />
-                            )}
-                        />
-                    )}
-
-                    <Controller
-                        name="description"
-                        control={control}
-                        render={({ field }) => (
-                            <TextInput
-                                label={t("description")}
-                                placeholder={t("description_placeholder")}
-                                value={field.value}
-                                onChange={(value) => field.onChange(value)}
+                            </HStack>
+                        </LayoutFooter>
+                    }
+                >
+                    <LayoutContent>
+                        <VStack gap={3}>
+                            <Selector
+                                label={t("domain")}
+                                options={domainOptions}
+                                value={watchAll.domain || undefined}
+                                onChange={(v) => setValue("domain", v)}
+                                placeholder={t("domain")}
+                                status={
+                                    errors.domain
+                                        ? { type: "error", message: errors.domain.message }
+                                        : undefined
+                                }
                             />
-                        )}
-                    />
 
-                    {watchAll.format !== "custom" && (
-                        <Selector
-                            label={t("prefix")}
-                            options={prefixOptions}
-                            value={watchAll.prefixFormat}
-                            onChange={(v) =>
-                                setValue("prefixFormat", v as typeof watchAll.prefixFormat)
-                            }
-                        />
-                    )}
+                            <Selector
+                                label={t("alias_format")}
+                                options={formatOptions}
+                                value={watchAll.format}
+                                onChange={(v) => setValue("format", v as typeof watchAll.format)}
+                            />
 
-                    {watchAll.format !== "custom" && watchAll.prefixFormat === "custom" && (
-                        <Controller
-                            name="customPrefix"
-                            control={control}
-                            render={({ field }) => (
-                                <TextInput
-                                    label={t("prefix_custom_label")}
-                                    value={field.value}
-                                    onChange={(value) => field.onChange(value)}
+                            {watchAll.format === "characters" && (
+                                <Controller
+                                    name="characterCount"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <NumberInput
+                                            label={t("number_of_chars")}
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            min={3}
+                                            max={25}
+                                        />
+                                    )}
                                 />
                             )}
-                        />
-                    )}
 
-                    <Selector
-                        label={t("destination")}
-                        options={destinationOptions}
-                        value={watchAll.destination || undefined}
-                        onChange={(v) => setValue("destination", v)}
-                        placeholder={t("destination")}
-                        status={
-                            errors.destination
-                                ? { type: "error", message: errors.destination.message }
-                                : undefined
-                        }
-                    />
+                            {watchAll.format === "words" && (
+                                <Controller
+                                    name="wordCount"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <NumberInput
+                                            label={t("number_of_words")}
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            min={1}
+                                            max={5}
+                                        />
+                                    )}
+                                />
+                            )}
 
-                    <HStack gap={2} align="end">
-                        <TextInput
-                            label={t("generated_alias")}
-                            value={aliasPreview ?? t("generated_alias_unavailable")}
-                            isReadOnly
-                            width="100%"
-                            status={
-                                previewExists
-                                    ? { type: "error", message: t("alias_already_exists") }
-                                    : undefined
-                            }
-                        />
-                        {canRegenerate && (
-                            <IconButton
-                                label={t("regenerate")}
-                                tooltip={t("regenerate")}
-                                icon={<TbRefresh />}
-                                onClick={() => setAliasPreview(createPreview())}
+                            {watchAll.format === "custom" && (
+                                <Controller
+                                    name="customAlias"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <TextInput
+                                            label={t("custom_alias")}
+                                            value={field.value}
+                                            onChange={(value) => field.onChange(value)}
+                                        />
+                                    )}
+                                />
+                            )}
+
+                            <Controller
+                                name="description"
+                                control={control}
+                                render={({ field }) => (
+                                    <TextInput
+                                        label={t("description")}
+                                        placeholder={t("description_placeholder")}
+                                        value={field.value}
+                                        onChange={(value) => field.onChange(value)}
+                                    />
+                                )}
                             />
-                        )}
-                    </HStack>
 
-                    <HStack gap={2}>
-                        <Button label={t("save_settings")} width="100%" onClick={saveSettings} />
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            label={tc("create")}
-                            width="100%"
-                            isLoading={createEmailRule.isPending}
-                            isDisabled={previewExists || !aliasPreview || !isOnline}
-                            tooltip={!isOnline ? tc("offline") : undefined}
-                        />
-                    </HStack>
-                </VStack>
+                            {watchAll.format !== "custom" && (
+                                <Selector
+                                    label={t("prefix")}
+                                    options={prefixOptions}
+                                    value={watchAll.prefixFormat}
+                                    onChange={(v) =>
+                                        setValue("prefixFormat", v as typeof watchAll.prefixFormat)
+                                    }
+                                />
+                            )}
+
+                            {watchAll.format !== "custom" && watchAll.prefixFormat === "custom" && (
+                                <Controller
+                                    name="customPrefix"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <TextInput
+                                            label={t("prefix_custom_label")}
+                                            value={field.value}
+                                            onChange={(value) => field.onChange(value)}
+                                        />
+                                    )}
+                                />
+                            )}
+
+                            <Selector
+                                label={t("destination")}
+                                options={destinationOptions}
+                                value={watchAll.destination || undefined}
+                                onChange={(v) => setValue("destination", v)}
+                                placeholder={t("destination")}
+                                status={
+                                    errors.destination
+                                        ? { type: "error", message: errors.destination.message }
+                                        : undefined
+                                }
+                            />
+
+                            <HStack gap={2} align="end">
+                                <TextInput
+                                    label={t("generated_alias")}
+                                    value={aliasPreview ?? t("generated_alias_unavailable")}
+                                    isReadOnly
+                                    width="100%"
+                                    status={
+                                        previewExists
+                                            ? { type: "error", message: t("alias_already_exists") }
+                                            : undefined
+                                    }
+                                />
+                                {canRegenerate && (
+                                    <IconButton
+                                        label={t("regenerate")}
+                                        tooltip={t("regenerate")}
+                                        icon={<TbRefresh />}
+                                        onClick={() => setAliasPreview(createPreview())}
+                                    />
+                                )}
+                            </HStack>
+                        </VStack>
+                    </LayoutContent>
+                </Layout>
             </form>
         </Dialog>
     );
