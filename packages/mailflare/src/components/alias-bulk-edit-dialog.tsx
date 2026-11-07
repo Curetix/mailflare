@@ -1,5 +1,6 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { useToast } from "@astryxdesign/core/Toast";
@@ -66,28 +67,36 @@ export function AliasBulkEditDialog({ open, onClose, selectedAliases }: Props) {
 
     return (
         <Dialog isOpen={open} onOpenChange={handleOpenChange} purpose="form">
-            <DialogHeader title={t("title")} onOpenChange={handleOpenChange} />
-            <VStack gap={3} padding={4}>
-                <Selector
-                    label={tf("destination")}
-                    options={destinationOptions}
-                    value={destination || null}
-                    onChange={(value: string | null) => setDestination(value ?? "")}
-                    placeholder={t("keep_destinations")}
-                    hasClear
-                />
+            <Layout
+                header={<DialogHeader title={t("title")} onOpenChange={handleOpenChange} />}
+                footer={
+                    <LayoutFooter hasDivider>
+                        <Button
+                            variant="primary"
+                            label={tc("save")}
+                            isLoading={isSubmitting}
+                            isDisabled={!isOnline}
+                            tooltip={!isOnline ? tc("offline") : undefined}
+                            onClick={handleSave}
+                        />
+                    </LayoutFooter>
+                }
+            >
+                <LayoutContent>
+                    <VStack gap={3}>
+                        <Selector
+                            label={tf("destination")}
+                            options={destinationOptions}
+                            value={destination || null}
+                            onChange={(value: string | null) => setDestination(value ?? "")}
+                            placeholder={t("keep_destinations")}
+                            hasClear
+                        />
 
-                <Switch label={tc("enabled")} value={enabled} onChange={setEnabled} />
-
-                <Button
-                    variant="primary"
-                    label={tc("save")}
-                    isLoading={isSubmitting}
-                    isDisabled={!isOnline}
-                    tooltip={!isOnline ? tc("offline") : undefined}
-                    onClick={handleSave}
-                />
-            </VStack>
+                        <Switch label={tc("enabled")} value={enabled} onChange={setEnabled} />
+                    </VStack>
+                </LayoutContent>
+            </Layout>
         </Dialog>
     );
 }

@@ -1,5 +1,6 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -87,57 +88,67 @@ export function AliasEditDialog({ open, onClose, alias }: Props) {
 
     return (
         <Dialog isOpen={open} onOpenChange={handleOpenChange} purpose="form">
-            <DialogHeader title={t("title")} onOpenChange={handleOpenChange} />
-            <form onSubmit={handleSubmit(onSubmit)}>
-                <VStack gap={3} padding={4}>
-                    <TextInput label={t("alias")} value={alias?.address ?? ""} isReadOnly />
-
-                    <Controller
-                        name="description"
-                        control={control}
-                        render={({ field }) => (
-                            <TextInput
-                                label={tf("description")}
-                                value={field.value}
-                                onChange={(value) => field.onChange(value)}
+            {/* display: contents lets the Layout fill the dialog (scrolling content,
+                pinned footer) while the footer's submit button stays inside the form. */}
+            <form onSubmit={handleSubmit(onSubmit)} style={{ display: "contents" }}>
+                <Layout
+                    header={<DialogHeader title={t("title")} onOpenChange={handleOpenChange} />}
+                    footer={
+                        <LayoutFooter hasDivider>
+                            <Button
+                                type="submit"
+                                variant="primary"
+                                label={t("save")}
+                                isLoading={updateEmailRule.isPending}
+                                isDisabled={!isOnline}
+                                tooltip={!isOnline ? tc("offline") : undefined}
                             />
-                        )}
-                    />
+                        </LayoutFooter>
+                    }
+                >
+                    <LayoutContent>
+                        <VStack gap={3}>
+                            <TextInput label={t("alias")} value={alias?.address ?? ""} isReadOnly />
 
-                    <Controller
-                        name="destination"
-                        control={control}
-                        render={({ field }) => (
-                            <Selector
-                                label={tf("destination")}
-                                options={destinationOptions}
-                                value={field.value}
-                                onChange={(value) => field.onChange(value)}
+                            <Controller
+                                name="description"
+                                control={control}
+                                render={({ field }) => (
+                                    <TextInput
+                                        label={tf("description")}
+                                        value={field.value}
+                                        onChange={(value) => field.onChange(value)}
+                                    />
+                                )}
                             />
-                        )}
-                    />
 
-                    <Controller
-                        name="enabled"
-                        control={control}
-                        render={({ field }) => (
-                            <Switch
-                                label={tc("enabled")}
-                                value={field.value}
-                                onChange={(checked) => field.onChange(checked)}
+                            <Controller
+                                name="destination"
+                                control={control}
+                                render={({ field }) => (
+                                    <Selector
+                                        label={tf("destination")}
+                                        options={destinationOptions}
+                                        value={field.value}
+                                        onChange={(value) => field.onChange(value)}
+                                    />
+                                )}
                             />
-                        )}
-                    />
 
-                    <Button
-                        type="submit"
-                        variant="primary"
-                        label={t("save")}
-                        isLoading={updateEmailRule.isPending}
-                        isDisabled={!isOnline}
-                        tooltip={!isOnline ? tc("offline") : undefined}
-                    />
-                </VStack>
+                            <Controller
+                                name="enabled"
+                                control={control}
+                                render={({ field }) => (
+                                    <Switch
+                                        label={tc("enabled")}
+                                        value={field.value}
+                                        onChange={(checked) => field.onChange(checked)}
+                                    />
+                                )}
+                            />
+                        </VStack>
+                    </LayoutContent>
+                </Layout>
             </form>
         </Dialog>
     );
