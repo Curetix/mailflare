@@ -1,0 +1,239 @@
+{
+    "common": {
+        "on": "On",
+        "off": "Off",
+        "no": "No",
+        "yes": "Yes",
+        "open": "Open",
+        "save": "Save",
+        "error": "Error",
+        "success": "Success",
+        "conflict": "Conflict",
+        "create": "Create",
+        "edit": "Edit",
+        "delete": "Delete",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "refresh": "Refresh",
+        "close": "Close",
+        "loading": "Loading...",
+        "offline": "Requires internet connection"
+    },
+    "alias_card": {
+        "description_placeholder": "(no description)",
+        "copy": "Copy to clipboard",
+        "copy_success": "Alias copied to clipboard!",
+        "edit": "Edit alias",
+        "delete": "Delete alias"
+    },
+    "alias_badge": {
+        "invalid": "Invalid",
+        "external": "External",
+        "disabled": "Disabled"
+    },
+    "alias_list": {
+        "domain_placeholder": "Select domain",
+        "select": "Select",
+        "stop_select": "Stop select",
+        "search": "Show search",
+        "stop_search": "Hide search",
+        "create": "Create alias",
+        "refresh": "Refresh data",
+        "search_placeholder": "Search your aliases...",
+        "email_routing_not_enabled": "Email Routing is either disabled or not configured properly for this domain.",
+        "email_routing_dashboard": "Check Cloudflare Dashboard",
+        "no_zones": "No domains for this Cloudflare account or API token.",
+        "zones_error": "Something went wrong while loading your domains: {error}",
+        "no_rules": "There are no aliases for this domain or this filter.",
+        "rules_error": "Something went wrong while loading your aliases: {error}"
+    },
+    "alias_create": {
+        "title": "Create Alias",
+        "domain": "Domain",
+        "alias_format": "Alias Format",
+        "format_characters": "Random Characters",
+        "format_words": "Random Words",
+        "format_domain": "Website Domain",
+        "format_custom": "Custom",
+        "number_of_chars": "Number of Characters",
+        "number_of_words": "Number of Words",
+        "custom_alias": "Custom Alias",
+        "description": "Description",
+        "description_placeholder": "Optional description...",
+        "prefix": "Prefix",
+        "prefix_none": "None",
+        "prefix_domain_without_ext": "Domain without TLD",
+        "prefix_domain_with_ext": "Domain with TLD",
+        "prefix_full_domain": "Full Domain",
+        "prefix_custom": "Custom Prefix",
+        "prefix_custom_label": "Custom Prefix",
+        "destination": "Destination",
+        "generated_alias": "Generated Alias",
+        "generated_alias_unavailable": "Unavailable",
+        "regenerate": "Regenerate",
+        "alias_already_exists": "This alias already exists",
+        "save_settings": "Save as Default",
+        "modal_close_blocked": "Please wait for the operation to finish",
+        "created_success": "Alias created successfully!",
+        "created_and_copied": "Alias created and copied to clipboard!",
+        "creation_error": "Could not create the alias",
+        "domain_not_found": "Domain not found",
+        "invalid_domain": "Please select a valid domain",
+        "invalid_format": "Please select a valid format",
+        "invalid_length": "Length must be between 3 and 25",
+        "invalid_word_count": "Word count must be between 1 and 5",
+        "invalid_custom_alias": "Custom alias must be at least 3 characters",
+        "invalid_prefix_format": "Please select a valid prefix format",
+        "invalid_custom_prefix": "Custom prefix is required",
+        "invalid_destination": "Please select a valid destination",
+        "destinations_loading_error": "Could not load destinations",
+        "destination_not_verified": "This destination is not verified"
+    },
+    "alias_edit": {
+        "title": "Edit Alias",
+        "alias": "Alias",
+        "save": "Save",
+        "success": "Alias updated successfully!",
+        "error": "Could not update alias: {error}",
+        "not_found": "Alias not found"
+    },
+    "alias_delete": {
+        "title": "Delete Alias",
+        "question_1": "Are you sure you want to delete",
+        "question_2": "This action cannot be undone.",
+        "success": "Alias deleted successfully!",
+        "error": "Could not delete alias: {error}"
+    },
+    "alias_bulk_edit": {
+        "title": "Edit Selected Aliases",
+        "keep_destinations": "Keep current destinations",
+        "success": "Selected aliases updated successfully!"
+    },
+    "alias_bulk_delete": {
+        "title": "Delete Selected Aliases",
+        "question": "Are you sure you want to delete {count} aliases?",
+        "success": "Selected aliases deleted successfully!"
+    },
+    "login": {
+        "login_error": "Token could not be verified. Is it correct?",
+        "token_label": "Cloudflare API Token",
+        "token_placeholder": "Paste your Cloudflare API token here",
+        "save_token": "Save token",
+        "offline_login": "Cannot verify token while offline",
+        "instructions": {
+            "title": "Instructions",
+            "step_1": "Open https://dash.cloudflare.com/profile/api-tokens",
+            "step_2": "Click \"Create Token\", select \"Create Custom Token\"",
+            "step_3": "Choose a name, like \"Email Extension\"",
+            "step_4": "Configure the following permissions:",
+            "step_5": "Set \"Account Resources\" to your account",
+            "step_6": "Set \"Zone Resources\" to \"All zones\" or select the zone you want to use",
+            "step_7": "Configure \"Client IP Address Filtering\" and \"TTL\" if you want to",
+            "step_8": "Click \"Continue to summary\" and then \"Create token\"",
+            "step_9": "Paste the generated token above"
+        }
+    },
+    "settings": {
+        "title": "Settings",
+        "theme": {
+            "title": "Theme",
+            "description": "Toggle between theme modes",
+            "light": "Light",
+            "dark": "Dark",
+            "auto": "Auto"
+        },
+        "language": {
+            "title": "Language",
+            "description": "Choose a language for the UI",
+            "english": "🇬🇧 English"
+        },
+        "filter": {
+            "title": "Rule Filter",
+            "description": "Only show email rules created by this extension"
+        },
+        "copy": {
+            "title": "Copy Alias",
+            "description": "Copy alias to clipboard after creating it"
+        },
+        "quick_create": {
+            "title": "Quick-Create Button",
+            "description": "Show a button inside email input fields to quickly create an alias for the current site"
+        },
+        "logout": {
+            "title": "Logout",
+            "description": "Clear all data and settings",
+            "action": "Logout",
+            "success": "Goodbye",
+            "dialog": {
+                "title": "Logout",
+                "description": "Do you want to log out? All local data will be deleted, but your aliases will of course keep working."
+            }
+        },
+        "info": "Info",
+        "docs": {
+            "title": "Cloudflare Docs",
+            "description": "For more information about Email Routing"
+        },
+        "import": {
+            "title": "Import Aliases",
+            "description": "Import aliases from other email alias services",
+            "action": "Import"
+        },
+        "refresh": {
+            "title": "Refresh data",
+            "description": "Refresh Cloudflare domains and email destinations",
+            "success": "Refreshed successfully",
+            "action": "Refresh"
+        }
+    },
+    "background": {
+        "error_not_logged_in": "You are not logged in to MailFlare",
+        "error_no_domain": "No domain selected in MailFlare",
+        "error_no_destination": "No destination configured in MailFlare",
+        "error_custom": "Cannot generate alias with custom format from background",
+        "error_invalid_domain": "Selected domain is not valid",
+        "alert_loading": "Creating new alias...",
+        "alert_created": "Alias created: {alias}",
+        "context_menu": "Generate and copy new MailFlare alias"
+    },
+    "import": {
+        "title": "Import Aliases",
+        "steps": {
+            "service": "Service",
+            "preview": "Select",
+            "target": "Destination",
+            "import": "Import"
+        },
+        "select_service": "Select the service to import aliases from:",
+        "enter_token": "Enter the API token for the selected service:",
+        "token_placeholder": "Paste your API token here",
+        "invalid_token": "Invalid API token. Please check and try again.",
+        "no_aliases_found": "No aliases found for this account.",
+        "fetch_error": "Failed to fetch aliases. Please try again.",
+        "verify_and_fetch": "Verify & Fetch Aliases",
+        "fetched_count": "Found {count, plural, one {# alias} other {# aliases}}",
+        "select_all": "Select all",
+        "deselect_all": "Deselect all",
+        "non_matching": "{count, plural, one {# alias} other {# aliases}} on other domains (not {domain}) will be skipped.",
+        "non_matching_zones": "{count, plural, one {# alias is} other {# aliases are}} on domains not in your Cloudflare zones and cannot be imported.",
+        "no_domain": "no domain selected",
+        "back": "Back",
+        "next": "Next",
+        "select_destination": "Select the forwarding destination for all imported aliases:",
+        "destination_placeholder": "Select destination",
+        "will_import_total": "{count, plural, one {# alias} other {# aliases}} will be imported across your zones.",
+        "rule_limit_warning": "Cloudflare has a default limit of 200 email routing rules per zone. The following zones exceed this limit: {domains}. Some imports may fail.",
+        "start_import": "Start Import",
+        "importing": "Importing aliases...",
+        "progress_count": "{completed} of {total} processed",
+        "failed_count": "{count, plural, one {# failed} other {# failed}}",
+        "abort": "Abort",
+        "imported_count": "{count, plural, one {# alias} other {# aliases}} imported successfully.",
+        "skipped_count": "{count, plural, one {# alias} other {# aliases}} skipped (different domain).",
+        "summary_failed": "{count, plural, one {# alias} other {# aliases}} failed to import.",
+        "start_over": "Start Over"
+    },
+    "offline": {
+        "banner": "You are offline. Viewing cached data. Some actions may not be available."
+    }
+}

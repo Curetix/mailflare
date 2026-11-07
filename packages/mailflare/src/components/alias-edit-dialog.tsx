@@ -1,0 +1,144 @@
+import { Button } from "@astryxdesign/core/Button";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Selector } from "@astryxdesign/core/Selector";
+import { Switch } from "@astryxdesign/core/Switch";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { useToast } from "@astryxdesign/core/Toast";
+import { VStack } from "@astryxdesign/core/VStack";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { useTranslations } from "use-intl";
+import { z } from "zod";
+
+import { useCloudflareConfig } from "../api/config-context";
+import { useCloudflare } from "../api/use-cloudflare";
+import { EMAIL_RULE_NAME_PREFIX } from "../const";
+import { useOnlineStatus } from "../hooks/use-online-status";
+import type { Alias } from "../utils/alias";
+
+type Props = {
+    open: boolean;
+    onClose: () => void;
+    alias: Alias | null;
+};
+
+const editSchema = z.object({
+    description: z.string(),
+    destination: z.string().min(1),
+    enabled: z.boolean(),
+});
+
+type EditForm = z.infer<typeof editSchema>;
+
+export function AliasEditDialog({ open, onClose, alias }: Props) {
+    const t = useTranslations("alias_edit");
+    const tf = useTranslations("alias_create");
+    const tc = useTranslations("common");
+    const toast = useToast();
+    const { apiBaseUrl } = useCloudflareConfig();
+    const { selectedZoneId, emailDestinations, updateEmailRule } = useCloudflare(apiBaseUrl);
+    const { isOnline } = useOnlineStatus();
+
+    const { handleSubmit, control, reset } = useForm<EditForm>({
+        resolver: zodResolver(editSchema),
+        defaultValues: { description: "", destination: "", enabled: true },
+    });
+
+    useEffect(() => {
+        if (alias && open) {
+            reset({
+                description: alias.name.replace(EMAIL_RULE_NAME_PREFIX, "").trim(),
+                destination: alias.destination,
+                enabled: alias.enabled,
+            });
+        }
+    }, [alias, open, reset]);
+
+    const destinationOptions =
+        emailDestinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
+
+    function onSubmit(values: EditForm) {
+        if (!alias) {
+            toast({ body: t("not_found"), type: "error" });
+            return;
+        }
+
+        const updated = Object.assign(Object.create(Object.getPrototypeOf(alias)), alias) as Alias;
+        updated.name = values.description;
+        updated.destination = values.destination;
+        updated.enabled = values.enabled;
+
+        updateEmailRule.mutate(
+            { rule: updated.toEmailRule(), zoneId: selectedZoneId },
+            {
+                onSuccess: () => {
+                    toast({ body: t("success") });
+                    onClose();
+                },
+                onError: (error) => {
+                    toast({ body: t("error", { error: String(error) }), type: "error" });
+                },
+            },
+        );
+    }
+
+    const handleOpenChange = (isOpen: boolean) => !isOpen && onClose();
+
+    return (
+        <Dialog isOpen={open} onOpenChange={handleOpenChange} purpose="form">
+            <DialogHeader title={t("title")} onOpenChange={handleOpenChange} />
+            <form onSubmit={handleSubmit(onSubmit)}>
+                <VStack gap={3} padding={4}>
+                    <TextInput label={t("alias")} value={alias?.address ?? ""} isReadOnly />
+
+                    <Controller
+                        name="description"
+                        control={control}
+                        render={({ field }) => (
+                            <TextInput
+                                label={tf("description")}
+                                value={field.value}
+                                onChange={(value) => field.onChange(value)}
+                            />
+                        )}
+                    />
+
+                    <Controller
+                        name="destination"
+                        control={control}
+                        render={({ field }) => (
+                            <Selector
+                                label={tf("destination")}
+                                options={destinationOptions}
+                                value={field.value}
+                                onChange={(value) => field.onChange(value)}
+                            />
+                        )}
+                    />
+
+                    <Controller
+                        name="enabled"
+                        control={control}
+                        render={({ field }) => (
+                            <Switch
+                                label={tc("enabled")}
+                                value={field.value}
+                                onChange={(checked) => field.onChange(checked)}
+                            />
+                        )}
+                    />
+
+                    <Button
+                        type="submit"
+                        variant="primary"
+                        label={t("save")}
+                        isLoading={updateEmailRule.isPending}
+                        isDisabled={!isOnline}
+                        tooltip={!isOnline ? tc("offline") : undefined}
+                    />
+                </VStack>
+            </form>
+        </Dialog>
+    );
+}
