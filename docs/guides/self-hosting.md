@@ -1,0 +1,97 @@
+---
+title: Self-Hosting the Web App
+description: Deploy your own instance of the MailFlare web app to Cloudflare Pages.
+---
+
+The MailFlare web app can be self-hosted on your own Cloudflare Pages project. This lets you have full control over the deployment and use your own domain.
+
+## Prerequisites
+
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up)
+- A domain with [Email Routing](https://developers.cloudflare.com/email-routing/) enabled
+- [Node.js](https://nodejs.org/) v20+ and [pnpm](https://pnpm.io/) installed (for manual deployment)
+
+## One-Click Deploy
+
+The easiest way to deploy is using the "Deploy to Cloudflare" button. This will fork the repository and set up a Cloudflare Pages project automatically.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Curetix/mailflare-extension)
+
+> [!NOTE]
+> After deploying, you'll need to set up a custom domain in the Cloudflare Pages dashboard if you want to use your own domain instead of the default `*.pages.dev` URL.
+
+## Manual Deployment
+
+If you prefer to deploy manually, follow these steps:
+
+1. **Clone the repository**
+
+    ```bash
+    git clone https://github.com/Curetix/mailflare-extension.git
+    cd mailflare-extension
+    ```
+
+2. **Install dependencies**
+
+    ```bash
+    pnpm install
+    ```
+
+3. **Build the web app**
+
+    ```bash
+    pnpm --filter @mailflare/web build
+    ```
+
+    The output will be in `apps/web/dist/`.
+
+4. **Deploy to Cloudflare Pages**
+
+    ```bash
+    npx wrangler pages deploy apps/web/dist --project-name mailflare
+    ```
+
+    Or deploy the `dist/` folder to any static hosting provider of your choice.
+
+## How It Works
+
+The web app is a static single-page application (SPA) built with Vite and React. It includes:
+
+- **Cloudflare Pages Functions** at `/api/*` that proxy requests to the Cloudflare API. This avoids CORS issues when calling the Cloudflare API directly from the browser.
+- **PWA support** via a service worker for offline caching of static assets.
+
+All Cloudflare API communication happens through the `/api` proxy — there are no hardcoded domains. Your API token is sent from the browser to the Pages Function, which forwards it to `api.cloudflare.com`.
+
+> [!TIP]
+> No environment variables are required for the web app. Each user provides their own Cloudflare API token at login time, which is stored locally in their browser.
+
+## Updating
+
+To update your deployment to the latest version:
+
+1. Pull the latest changes:
+
+    ```bash
+    git pull origin main
+    ```
+
+2. Rebuild and redeploy:
+
+    ```bash
+    pnpm install
+    pnpm --filter @mailflare/web build
+    npx wrangler pages deploy apps/web/dist --project-name mailflare
+    ```
+
+If you used the one-click deploy, your Cloudflare Pages project is connected to your fork. Simply sync your fork with the upstream repository and Cloudflare Pages will automatically rebuild and deploy.
+
+## Custom Domain
+
+To use a custom domain (e.g., `app.yourdomain.com`):
+
+1. Go to your Cloudflare Pages project in the dashboard
+2. Navigate to **Custom domains**
+3. Click **Set up a custom domain**
+4. Enter your desired domain and follow the DNS setup instructions
+
+For more details, see [Cloudflare Pages custom domains](https://developers.cloudflare.com/pages/configuration/custom-domains/).

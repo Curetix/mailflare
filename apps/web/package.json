@@ -1,0 +1,26 @@
+{
+    "name": "@mailflare/web",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "preview": "vite preview",
+        "check-types": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@mailflare/core": "workspace:*",
+        "react": "catalog:",
+        "react-dom": "catalog:"
+    },
+    "devDependencies": {
+        "@mailflare/config": "workspace:*",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "@vitejs/plugin-react": "^6.2.1",
+        "typescript": "catalog:",
+        "vite": "^8.3.6",
+        "vite-plugin-pwa": "^2.0.0"
+    }
+}
