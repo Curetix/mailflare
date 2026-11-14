@@ -8,6 +8,7 @@
         "./headless": "./src/headless.ts",
         "./styles": "./src/styles.ts",
         "./const": "./src/const.ts",
+        "./storage/keys": "./src/storage/storage.ts",
         "./storage/web": "./src/storage/web-storage.ts",
         "./storage/extension": "./src/storage/extension-storage.ts",
         "./i18n/messages/*": "./src/i18n/messages/*"
