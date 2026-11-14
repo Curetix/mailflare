@@ -5,6 +5,9 @@ Point a domain's catch-all rule at the Worker. It delivers mail for your aliases
 and rejects everything else. Aliases live in D1, so you aren't limited to
 Email Routing's 200 rules per domain.
 
+The Worker also serves the Mailflare web app (built from `apps/web`), connected
+to itself: everything under `/api/` is the API, every other path is the app.
+
 To set it up and connect the Mailflare app, see the
 [Worker mode guide](../../docs/guides/worker-mode.md).
 
@@ -36,7 +39,10 @@ your domain onboarded for Email Sending.
 The `ADMIN_TOKEN` manages the deployment's own domains, destinations and
 aliases. With `AUTH_SECRET` set, people can also have accounts (email and
 password, magic links, passkeys) under `/api/auth/*`, powered by
-[better-auth](https://better-auth.com):
+[better-auth](https://better-auth.com). They sign in to the app the Worker
+serves; passkeys only work there, because they belong to the Worker's domain.
+Links in the Worker's emails (confirming an account or an inbox, signing in,
+resetting a password) open pages of that app.
 
 - Accounts create aliases on **shared** domains, forwarding to destinations
   they confirmed through a link the Worker mails them. The account's own email
@@ -69,9 +75,13 @@ Secrets: `ADMIN_TOKEN` and `AUTH_SECRET` (`wrangler secret put <name>`).
 
 ```sh
 cp .dev.vars.example .dev.vars   # set ADMIN_TOKEN and AUTH_SECRET
+pnpm build                       # builds the app into ./app (once, or after app changes)
 pnpm dev                         # applies local migrations, starts wrangler dev
 pnpm test                        # Vitest inside workerd
 ```
+
+`wrangler dev` writes the emails the Worker sends (sign-in links and so on)
+to files under `.wrangler/tmp/email/` and logs their paths.
 
 To send a test email to the local Worker:
 
@@ -87,7 +97,7 @@ folder under `migrations/`, and Wrangler applies it.
 ## Deploy
 
 ```sh
-pnpm run deploy                             # deploys (creating D1 the first time), then migrates
+pnpm run deploy                             # builds the app, deploys (creating D1 the first time), migrates
 pnpm exec wrangler secret put ADMIN_TOKEN   # a long random string
 pnpm exec wrangler secret put AUTH_SECRET   # another one, for accounts
 ```
@@ -116,6 +126,7 @@ in). Timestamps are Unix seconds. Errors look like
 | `GET`    | `/api/v1/destinations`            |                                                    |
 | `POST`   | `/api/v1/destinations`            | `{ email }`; accounts get a confirmation email     |
 | `POST`   | `/api/v1/destinations/:id/verify` | Mails a new confirmation link                      |
+| `POST`   | `/api/verify-destination`         | Public: `{ token }` from the confirmation link     |
 | `DELETE` | `/api/v1/destinations/:id`        | `409` while aliases use it                         |
 | `GET`    | `/api/v1/aliases`                 | Optional `?domainId=`; newest first                |
 | `POST`   | `/api/v1/aliases`                 | `{ address, destination, description?, enabled? }` |

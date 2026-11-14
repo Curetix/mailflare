@@ -266,5 +266,45 @@
         "destination_input": "Email address",
         "add": "Add",
         "empty": "None yet."
+    },
+    "account": {
+        "sign_in": "Sign in",
+        "sign_up": "Create account",
+        "email_label": "Email",
+        "email_invalid": "Enter your email address",
+        "password_label": "Password",
+        "password_too_short": "Use at least 8 characters",
+        "passkey": "Sign in with a passkey",
+        "magic_link": "Email me a sign-in link",
+        "forgot_password": "Forgot password?",
+        "link_sent": "If {email} has an account, a link is on its way.",
+        "sign_up_sent": "Almost done: open the link we sent to {email} to confirm your address.",
+        "verify_email_first": "Confirm your email first. We sent a new link to {email}.",
+        "admin_token": "Sign in with the admin token",
+        "errors": {
+            "wrong_password": "Wrong email or password",
+            "too_many": "Too many attempts. Try again in a minute.",
+            "link_invalid": "This link is invalid, expired or was already used.",
+            "generic": "Something went wrong: {error}"
+        },
+        "reset": {
+            "title": "Set a new password",
+            "password_label": "New password",
+            "submit": "Save password",
+            "success": "Password changed. Sign in with it now."
+        },
+        "verify_destination": {
+            "title": "Confirm this inbox",
+            "description": "Someone added this inbox to their Mailflare account, so their aliases can forward mail to it. Only confirm if that was you.",
+            "submit": "Confirm inbox",
+            "success": "Inbox confirmed. Aliases can now forward mail here.",
+            "home": "Open Mailflare"
+        },
+        "passkeys": {
+            "title": "Passkeys",
+            "description": "Signed in as {email}. Add a passkey to sign in without a password.",
+            "action": "Add passkey",
+            "success": "Passkey added"
+        }
     }
 }

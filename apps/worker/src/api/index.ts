@@ -22,7 +22,6 @@ import { createDb, type Db, schema } from "../db";
 import {
     RESEND_INTERVAL_MS,
     sendDestinationVerification,
-    VERIFY_PATH,
     verifyDestination,
 } from "../destinations";
 import { getSettings } from "../settings";
@@ -550,15 +549,16 @@ app.on(["GET", "POST"], `${AUTH_BASE_PATH}/*`, (c) => {
     return auth.handler(c.req.raw);
 });
 
-app.get(VERIFY_PATH, async (c) => {
-    const token = c.req.query("token") ?? "";
-    const verified = token ? await verifyDestination(createDb(c.env.DB), token) : false;
-    return c.text(
-        verified
-            ? "Inbox confirmed. Your Mailflare aliases can now forward here."
-            : "This link is invalid or has expired. Request a new one in the Mailflare app.",
-        verified ? 200 : 400,
-    );
+app.post("/api/verify-destination", json(z.object({ token: z.string() })), async (c) => {
+    const { token } = c.req.valid("json");
+    if (!(await verifyDestination(createDb(c.env.DB), token))) {
+        throw new ApiException(
+            400,
+            "invalid_token",
+            "This link is invalid or has expired. Request a new one in the Mailflare app.",
+        );
+    }
+    return c.json({ verified: true });
 });
 
 app.route("/api/v1", v1);

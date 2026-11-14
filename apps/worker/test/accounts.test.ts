@@ -75,6 +75,33 @@ describe("signing up", () => {
     });
 });
 
+describe("magic links", () => {
+    it("sign in, and only mail strangers when sign-ups are open", async () => {
+        const closed = { env: { PUBLIC_SIGNUPS: "false" } };
+        const ask = (email: string) =>
+            request("POST", "/api/auth/sign-in/magic-link", { email }, closed);
+
+        expect((await ask("stranger@user.test")).ok).toBe(true);
+        expect(lastMailTo("stranger@user.test")).toBeUndefined();
+
+        await signUp("member@user.test");
+        expect((await ask("member@user.test")).ok).toBe(true);
+        const link = linkIn(lastMailTo("member@user.test"));
+        const landing = await request("GET", link);
+        // Back to the app, signed in with a cookie the app trades for a token.
+        expect(landing.status).toBe(302);
+        const cookie = landing.headers.get("set-cookie")!.split(";")[0]!;
+        const session = await request("GET", "/api/auth/get-session", undefined, {
+            headers: { Cookie: cookie },
+        });
+        const { session: s } = await session.json<{ session: { token: string } }>();
+        const me = await api<Api.Me>("GET", "/api/v1/me", undefined, s.token);
+        expect(me.body.user?.email).toBe("member@user.test");
+        // Links work once.
+        expect((await request("GET", link)).headers.get("location")).toContain("error");
+    });
+});
+
 describe("an account's data", () => {
     it("sees shared domains only and keeps its aliases to itself", async () => {
         const shared = await sharedDomain("shared.test");
@@ -156,11 +183,15 @@ describe("an account's data", () => {
         );
         expect(resend.status).toBe(429);
 
-        const link = linkIn(lastMailTo("carol@other.test"));
-        expect((await request("GET", `${link}x`)).status).toBe(400);
-        expect((await request("GET", link)).status).toBe(200);
+        // The link opens the app, which confirms with a POST.
+        const link = new URL(linkIn(lastMailTo("carol@other.test")));
+        expect(link.pathname).toBe("/verify-destination");
+        const token = link.searchParams.get("token");
+        const confirm = (body: unknown) => request("POST", "/api/verify-destination", body);
+        expect((await confirm({ token: `${token}x` })).status).toBe(400);
+        expect((await confirm({ token })).status).toBe(200);
         // Links work once.
-        expect((await request("GET", link)).status).toBe(400);
+        expect((await confirm({ token })).status).toBe(400);
 
         const created = await api(
             "POST",

@@ -8,11 +8,13 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
-import { useQueryClient } from "@tanstack/react-query";
-import { Fragment, type ReactNode, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment, type ReactNode, useMemo, useState } from "react";
 import { LuExternalLink, LuImport, LuSettings } from "react-icons/lu";
 import { useTranslations } from "use-intl";
 
+import { createAccountClient, unwrap } from "../account/account-client";
+import { useAccountErrorMessage } from "../account/use-account-error";
 import { useCloudflareConfig } from "../api/config-context";
 import { useMailflare } from "../backend/use-mailflare";
 import { GITHUB_LINK } from "../const";
@@ -34,7 +36,9 @@ function SettingsList() {
     const t = useTranslations("settings");
     const tc = useTranslations("common");
     const toast = useToast();
-    const { isExtension } = useCloudflareConfig();
+    const ta = useTranslations("account");
+    const accountError = useAccountErrorMessage();
+    const { isExtension, lockedWorkerUrl } = useCloudflareConfig();
     const { backend, zones, destinations, canManageDomains } = useMailflare();
     const setManageDomainsOpen = useUIStore((s) => s.setManageDomainsOpen);
 
@@ -43,6 +47,18 @@ function SettingsList() {
     const updateSettings = useSettingsStore((s) => s.updateSettings);
 
     const [logoutOpen, setLogoutOpen] = useState(false);
+
+    // Passkeys belong to the Worker's domain, so only the app it serves can add them.
+    const accountClient = useMemo(
+        () => (lockedWorkerUrl && apiToken ? createAccountClient(lockedWorkerUrl, apiToken) : null),
+        [lockedWorkerUrl, apiToken],
+    );
+    const account = useQuery({
+        queryKey: ["account-session", lockedWorkerUrl, apiToken],
+        enabled: accountClient !== null,
+        networkMode: "online",
+        queryFn: async () => (await accountClient?.getSession())?.data?.user ?? null,
+    });
 
     function toggle(key: "ruleFilter" | "copyAlias" | "showCreateButton", title: string) {
         return (
@@ -124,6 +140,28 @@ function SettingsList() {
                     size="sm"
                     label={t("manage_domains.action")}
                     onClick={() => setManageDomainsOpen(true)}
+                />
+            ),
+        },
+        {
+            key: "passkeys",
+            title: ta("passkeys.title"),
+            description: account.data
+                ? ta("passkeys.description", { email: account.data.email })
+                : undefined,
+            hide: !account.data || !accountClient,
+            action: (
+                <Button
+                    size="sm"
+                    label={ta("passkeys.action")}
+                    clickAction={async () => {
+                        try {
+                            if (accountClient) await unwrap(accountClient.passkey.addPasskey());
+                            toast({ body: ta("passkeys.success") });
+                        } catch (error) {
+                            toast({ body: accountError(error), type: "error" });
+                        }
+                    }}
                 />
             ),
         },

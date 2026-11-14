@@ -39,8 +39,12 @@ export function createAuth(
     const db = createDb(env.DB);
 
     // Not awaited, so response times don't reveal whether an account exists.
-    const send = (email: AccountEmail) => {
-        const sending = sendAccountEmail(env, db, email).catch((error: unknown) => {
+    // `email` may decide in the background not to send anything (null).
+    const send = (email: AccountEmail | (() => Promise<AccountEmail | null>)) => {
+        const sending = (async () => {
+            const mail = typeof email === "function" ? await email() : email;
+            if (mail) await sendAccountEmail(env, db, mail);
+        })().catch((error: unknown) => {
             console.error(
                 `Account email failed: ${error instanceof Error ? error.message : error}`,
             );
@@ -110,11 +114,25 @@ export function createAuth(
             admin(),
             bearer(),
             magicLink({
+                // A database leak shouldn't hand out sign-ins.
+                storeToken: "hashed",
                 sendMagicLink: async ({ email, url }) =>
-                    send({
-                        to: email,
-                        subject: "Sign in to Mailflare",
-                        text: `Sign in to your Mailflare account:\n\n${url}\n\nThe link works once and expires in 5 minutes. If you didn't ask for it, ignore this email.`,
+                    send(async () => {
+                        // Magic links also sign up. When that would be refused,
+                        // don't mail strangers; the answer looks the same.
+                        const address = email.toLowerCase();
+                        if (!settings.publicSignups && !settings.adminEmails.has(address)) {
+                            const existing = await db.query.user.findFirst({
+                                where: { email: address },
+                                columns: { id: true },
+                            });
+                            if (!existing) return null;
+                        }
+                        return {
+                            to: email,
+                            subject: "Sign in to Mailflare",
+                            text: `Sign in to your Mailflare account:\n\n${url}\n\nThe link works once and expires in 5 minutes. If you didn't ask for it, ignore this email.`,
+                        };
                     }),
             }),
             passkey({ rpID: new URL(origin).hostname, rpName: "Mailflare", origin }),

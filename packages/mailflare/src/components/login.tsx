@@ -33,7 +33,7 @@ const TOKEN_PERMISSIONS = [
 const WORKER_GUIDE_LINK = `${GITHUB_LINK}/blob/main/docs/guides/worker-mode.md`;
 
 /** Verifies a connection and logs in with it; rejects with a readable message. */
-function useConnect() {
+export function useConnect() {
     const { apiBaseUrl } = useCloudflareConfig();
     const queryClient = useQueryClient();
     const connect = useAuthStore((s) => s.connect);
@@ -148,7 +148,7 @@ function CloudflareLogin() {
     );
 }
 
-function WorkerLogin() {
+export function WorkerLogin({ lockedUrl }: { lockedUrl?: string } = {}) {
     const t = useTranslations("login");
     const toast = useToast();
     const { isOnline } = useOnlineStatus();
@@ -174,7 +174,7 @@ function WorkerLogin() {
         formState: { errors },
     } = useForm<z.infer<typeof schema>>({
         resolver: zodResolver(schema),
-        defaultValues: { url: "", token: "" },
+        defaultValues: { url: lockedUrl ?? "", token: "" },
     });
 
     return (
@@ -193,26 +193,28 @@ function WorkerLogin() {
             )}
         >
             <VStack gap={3}>
-                <Controller
-                    name="url"
-                    control={control}
-                    render={({ field }) => (
-                        <TextInput
-                            type="url"
-                            label={t("worker_url_label")}
-                            placeholder={t("worker_url_placeholder")}
-                            autoComplete="url"
-                            value={field.value}
-                            onChange={(value) => field.onChange(value)}
-                            isDisabled={isPending}
-                            status={
-                                errors.url
-                                    ? { type: "error", message: errors.url.message }
-                                    : undefined
-                            }
-                        />
-                    )}
-                />
+                {!lockedUrl && (
+                    <Controller
+                        name="url"
+                        control={control}
+                        render={({ field }) => (
+                            <TextInput
+                                type="url"
+                                label={t("worker_url_label")}
+                                placeholder={t("worker_url_placeholder")}
+                                autoComplete="url"
+                                value={field.value}
+                                onChange={(value) => field.onChange(value)}
+                                isDisabled={isPending}
+                                status={
+                                    errors.url
+                                        ? { type: "error", message: errors.url.message }
+                                        : undefined
+                                }
+                            />
+                        )}
+                    />
+                )}
                 <Controller
                     name="token"
                     control={control}
@@ -243,12 +245,14 @@ function WorkerLogin() {
                     isDisabled={!isOnline}
                 />
 
-                <Text type="supporting">
-                    {t("worker_intro")}{" "}
-                    <Link href={WORKER_GUIDE_LINK} isExternalLink>
-                        {t("worker_guide")}
-                    </Link>
-                </Text>
+                {!lockedUrl && (
+                    <Text type="supporting">
+                        {t("worker_intro")}{" "}
+                        <Link href={WORKER_GUIDE_LINK} isExternalLink>
+                            {t("worker_guide")}
+                        </Link>
+                    </Text>
+                )}
             </VStack>
         </form>
     );
