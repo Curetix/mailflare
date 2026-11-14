@@ -11,14 +11,10 @@ The MailFlare web app can be self-hosted on your own Cloudflare Pages project. T
 - A domain with [Email Routing](https://developers.cloudflare.com/email-routing/) enabled
 - [Node.js](https://nodejs.org/) v20+ and [pnpm](https://pnpm.io/) installed (for manual deployment)
 
-## One-Click Deploy
-
-The easiest way to deploy is using the "Deploy to Cloudflare" button. This will fork the repository and set up a Cloudflare Pages project automatically.
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Curetix/mailflare-extension)
-
-> [!NOTE]
-> After deploying, you'll need to set up a custom domain in the Cloudflare Pages dashboard if you want to use your own domain instead of the default `*.pages.dev` URL.
+> [!TIP]
+> The repository's "Deploy to Cloudflare" button deploys the [Mailflare Worker](worker-mode.md)
+> instead, which serves its own copy of the web app, connected to that Worker. This guide is for
+> the web app that connects with a Cloudflare API token.
 
 ## Manual Deployment
 
