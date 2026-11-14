@@ -6,19 +6,13 @@ import {
 } from "@mailflare/core/headless";
 import { defineBackground } from "wxt/utils/define-background";
 
+import type { ContentScriptAlert } from "../utils/alerts";
+
 type TabMessage =
     | { command: "copyText"; text: string }
     | { command: "clearClipboard" }
     | { command: "showAlert"; alert: ContentScriptAlert }
     | { command: "dismissAlert"; id: number };
-
-type ContentScriptAlert = {
-    id: number;
-    type?: "info" | "success" | "error";
-    message: string;
-    timeout?: number;
-    isLoading?: boolean;
-};
 
 async function sendTabMessage(tabId: number | undefined, message: TabMessage) {
     if (!tabId) return;
@@ -92,6 +86,26 @@ export default defineBackground(() => {
         } finally {
             await sendTabMessage(tab?.id, { command: "dismissAlert", id: loadingAlertId });
         }
+    });
+
+    // Quick-create button in email inputs (content script).
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message?.command !== "generateAlias") return;
+        // Use the sender's URL, not anything from the message, for the hostname.
+        const hostname = sender.url ? new URL(sender.url).hostname : undefined;
+        if (!sender.tab || !hostname) {
+            sendResponse({ success: false, message: "Unknown page" });
+            return;
+        }
+        generateAliasInBackground(hostname)
+            .then((alias) => sendResponse({ success: true, alias: alias.toString() }))
+            .catch((error: unknown) =>
+                sendResponse({
+                    success: false,
+                    message: error instanceof Error ? error.message : String(error),
+                }),
+            );
+        return true; // Keep the channel open for the async response.
     });
 
     chrome.runtime.onInstalled.addListener(() => {
