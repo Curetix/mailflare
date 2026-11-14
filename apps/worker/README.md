@@ -40,8 +40,7 @@ writes a new folder under `migrations/`, and Wrangler applies it.
 ## Deploy
 
 ```sh
-pnpm exec wrangler deploy                   # first time only: creates the D1 database
-pnpm run deploy                             # applies migrations, then deploys
+pnpm run deploy                             # deploys (creating D1 the first time), then migrates
 pnpm exec wrangler secret put ADMIN_TOKEN   # a long random string
 ```
 

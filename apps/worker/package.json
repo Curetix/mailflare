@@ -8,7 +8,7 @@
     },
     "scripts": {
         "dev": "wrangler d1 migrations apply DB --local && wrangler dev",
-        "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
+        "deploy": "wrangler deploy && wrangler d1 migrations apply DB --remote",
         "db:generate": "drizzle-kit generate",
         "test": "vitest run",
         "check-types": "tsc --noEmit"

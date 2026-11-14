@@ -39,8 +39,7 @@ To deploy from your own machine instead:
 git clone https://github.com/Curetix/mailflare-extension.git
 cd mailflare-extension/apps/worker
 npm install
-npx wrangler deploy                  # first deploy: creates the D1 database
-npm run deploy                       # creates the tables, deploys again
+npm run deploy                       # deploys, creates the D1 database and its tables
 npx wrangler secret put ADMIN_TOKEN  # paste your random string
 ```
 
