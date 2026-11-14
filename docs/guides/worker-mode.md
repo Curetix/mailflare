@@ -23,13 +23,15 @@ domains, and the aliases live in the Worker's D1 database.
 
 ## 1. Deploy the Worker
 
-The quickest way is the deploy button. It copies the Worker into a new GitHub repository on your
-account, creates its D1 database, and deploys it:
+The quickest way is the deploy button. It copies the repository into a new GitHub repository on
+your account, creates the Worker's D1 database, and deploys it:
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Curetix/mailflare-extension/tree/main/apps/worker)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Curetix/mailflare-extension)
 
 During setup, Cloudflare asks for an `ADMIN_TOKEN`. Use a long random string, for example the
-output of `openssl rand -base64 32`, and keep it: you'll enter it in the app to connect.
+output of `openssl rand -base64 32`, and keep it: you'll enter it in the app to connect. It also
+asks for an `AUTH_SECRET`, another random string, which you only need for
+[accounts](#5-accounts-optional).
 
 To deploy from your own machine instead:
 
@@ -43,9 +45,7 @@ pnpm exec wrangler secret put ADMIN_TOKEN # paste your random string
 ```
 
 The deploy output shows the Worker's URL, for example `https://mailflare.your-name.workers.dev`.
-Deployed from the repository like this, the Worker also serves the Mailflare web app at that URL,
-connected to itself. The deploy button copies only the Worker, so its deployments serve the API
-only, and you use the web app or the extension instead.
+The Worker also serves the Mailflare web app at that URL, connected to itself.
 
 ## 2. Send your domains' mail to the Worker
 
