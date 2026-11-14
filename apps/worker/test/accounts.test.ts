@@ -218,6 +218,29 @@ describe("an account's data", () => {
     });
 });
 
+describe("sessions", () => {
+    it("hands other apps a session of their own, and signs out one at a time", async () => {
+        const app = await signUp("frank@user.test");
+        const created = await api<Api.NewSession>("POST", "/api/v1/sessions", undefined, app);
+        expect(created.status).toBe(201);
+        const extension = created.body.token;
+        expect(extension).not.toBe(app);
+
+        const me = await api<Api.Me>("GET", "/api/v1/me", undefined, extension);
+        expect(me.body.user?.email).toBe("frank@user.test");
+
+        // Signing the extension out leaves the app signed in.
+        expect((await api("DELETE", "/api/v1/session", undefined, extension)).status).toBe(204);
+        expect((await api("GET", "/api/v1/me", undefined, extension)).status).toBe(401);
+        expect((await api("GET", "/api/v1/me", undefined, app)).status).toBe(200);
+
+        // The admin token is no account: nothing to hand out, nothing to sign out.
+        expect((await api("POST", "/api/v1/sessions")).status).toBe(400);
+        expect((await api("DELETE", "/api/v1/session")).status).toBe(204);
+        expect((await api("GET", "/api/v1/me")).status).toBe(200);
+    });
+});
+
 describe("admins", () => {
     it("list accounts and can suspend them", async () => {
         const eve = await signUp("eve@user.test");

@@ -87,10 +87,16 @@ domains you share, forwarding to inboxes they confirm by email.
    address, and `PUBLIC_SIGNUPS` to `true` if anyone may sign up. The
    [Worker's README](../../apps/worker/README.md#settings) lists all settings, including
    per-account limits.
-3. Your domain needs Cloudflare Email Sending (Workers
-   Paid plan) for the Worker to mail sign-in links and confirmations.
-4. Share a domain with accounts through the API (`PATCH /api/v1/domains/:id` with
-   `{ "shared": true }`).
+3. Your domain needs Cloudflare Email Sending (Workers Paid plan) for the Worker to mail sign-in
+   links and confirmations.
+4. Sign in to the app the Worker serves with your `ADMIN_EMAILS` address (an emailed sign-in
+   link creates the account). Under **Settings** → **Domains & destinations**, turn on **Shared**
+   for the domains accounts may use, and under **Settings** → **Accounts**, promote or suspend
+   accounts.
+
+Accounts can use the extension too: under **Mailflare Worker** on its login screen, enter the
+Worker URL and select **Sign in with an account**. The Worker's app opens, asks you to allow the
+extension, and gives it a session of its own.
 
 Accounts can only reply to people who emailed their alias first, up to a daily limit, so your
 domains can't be used to spam strangers.

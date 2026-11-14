@@ -153,6 +153,8 @@ export function WorkerLogin({ lockedUrl }: { lockedUrl?: string } = {}) {
     const toast = useToast();
     const { isOnline } = useOnlineStatus();
     const { isPending, mutate } = useConnect();
+    const { connectWorkerAccount } = useCloudflareConfig();
+    const [connectingAccount, setConnectingAccount] = useState(false);
 
     const schema = z.object({
         url: z
@@ -171,25 +173,36 @@ export function WorkerLogin({ lockedUrl }: { lockedUrl?: string } = {}) {
     const {
         control,
         handleSubmit,
+        trigger,
+        getValues,
         formState: { errors },
     } = useForm<z.infer<typeof schema>>({
         resolver: zodResolver(schema),
         defaultValues: { url: lockedUrl ?? "", token: "" },
     });
 
+    const onError = (error: Error) =>
+        toast({ body: t("worker_error", { error: error.message }), type: "error" });
+
+    /** Signs in with an account through the Worker's own app (the extension). */
+    async function signInWithAccount() {
+        if (!connectWorkerAccount || !(await trigger("url"))) return;
+        const url = normalizeWorkerUrl(getValues("url"));
+        setConnectingAccount(true);
+        try {
+            const token = await connectWorkerAccount(url);
+            mutate({ kind: "worker", url, token }, { onError });
+        } catch (error) {
+            onError(error instanceof Error ? error : new Error(String(error)));
+        } finally {
+            setConnectingAccount(false);
+        }
+    }
+
     return (
         <form
             onSubmit={handleSubmit(({ url, token }) =>
-                mutate(
-                    { kind: "worker", url: normalizeWorkerUrl(url), token },
-                    {
-                        onError: (error) =>
-                            toast({
-                                body: t("worker_error", { error: error.message }),
-                                type: "error",
-                            }),
-                    },
-                ),
+                mutate({ kind: "worker", url: normalizeWorkerUrl(url), token }, { onError }),
             )}
         >
             <VStack gap={3}>
@@ -244,6 +257,17 @@ export function WorkerLogin({ lockedUrl }: { lockedUrl?: string } = {}) {
                     isLoading={isPending}
                     isDisabled={!isOnline}
                 />
+
+                {connectWorkerAccount && !lockedUrl && (
+                    <Button
+                        width="100%"
+                        label={t("worker_account")}
+                        tooltip={t("worker_account_hint")}
+                        isLoading={connectingAccount}
+                        isDisabled={!isOnline || isPending}
+                        onClick={() => void signInWithAccount()}
+                    />
+                )}
 
                 {!lockedUrl && (
                     <Text type="supporting">

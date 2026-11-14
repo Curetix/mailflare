@@ -14,6 +14,21 @@ const sessionStorageAdapter = new SessionStorageAdapter();
 const persister = createExtensionPersister(storageAdapter);
 const locale = chrome.i18n?.getUILanguage?.()?.split("-")[0] || "en";
 
+type ConnectResponse = { success: true; token: string } | { success: false; message: string };
+
+/**
+ * Account sign-in runs in the background script: the sign-in window closes
+ * this popup, and the background stores the session for its next opening.
+ */
+async function connectWorkerAccount(url: string): Promise<string> {
+    const response = (await chrome.runtime.sendMessage({
+        command: "connectWorkerAccount",
+        url,
+    })) as ConnectResponse;
+    if (!response.success) throw new Error(response.message);
+    return response.token;
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
         <MailflareProvider
@@ -22,6 +37,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             locale={locale}
             messages={messages}
             isExtension={true}
+            connectWorkerAccount={connectWorkerAccount}
             sessionStorageAdapter={sessionStorageAdapter}
         >
             <MailflareApp />

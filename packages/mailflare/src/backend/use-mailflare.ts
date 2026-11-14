@@ -3,7 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCloudflareConfig } from "../api/config-context";
 import { getConnection, useAuthStore } from "../stores/auth-store";
 import { createBackend } from "./create-backend";
-import type { Alias, AliasBackend, AliasChanges, Connection, NewAlias } from "./types";
+import type {
+    AccountUserChanges,
+    Alias,
+    AliasBackend,
+    AliasChanges,
+    Connection,
+    NewAlias,
+} from "./types";
 
 // One instance per connection, shared by every component (and kept across
 // re-renders) so per-instance caches like the account ID are reused.
@@ -32,6 +39,8 @@ export const queryKeys = {
     domains: () => [...queryKeys.all, "domains"] as const,
     zoneStatus: (zoneId: string | null) => [...queryKeys.all, "zone-status", zoneId] as const,
     destinations: () => [...queryKeys.all, "destinations"] as const,
+    account: () => [...queryKeys.all, "account"] as const,
+    users: () => [...queryKeys.all, "users"] as const,
     aliases: (zoneId?: string | null) =>
         zoneId === undefined
             ? ([...queryKeys.all, "aliases"] as const)
@@ -61,6 +70,11 @@ export function useMailflare() {
     const selectedZoneId = useAuthStore((s) => s.selectedZoneId);
     const setSelectedZoneId = useAuthStore((s) => s.setZone);
     const enabled = !!backend;
+    const management = () => {
+        const manager = requireBackend(backend).management;
+        if (!manager) throw new Error("This backend manages domains elsewhere");
+        return manager;
+    };
 
     const zones = useQuery({
         ...listOptions,
@@ -91,6 +105,14 @@ export function useMailflare() {
         queryFn: () => requireBackend(backend).listDestinations(),
         enabled,
         placeholderData: [],
+    });
+
+    // Who is signed in to a Worker (admin token or account), and their limits.
+    const account = useQuery({
+        ...listOptions,
+        queryKey: queryKeys.account(),
+        queryFn: () => management().getAccount(),
+        enabled: enabled && !!backend?.management,
     });
 
     const aliases = useQuery({
@@ -130,11 +152,6 @@ export function useMailflare() {
             queryClient.invalidateQueries({ queryKey: queryKeys.domains() }),
             queryClient.invalidateQueries({ queryKey: queryKeys.destinations() }),
         ]);
-    const management = () => {
-        const manager = requireBackend(backend).management;
-        if (!manager) throw new Error("This backend manages domains elsewhere");
-        return manager;
-    };
 
     const addDomain = useMutation({
         mutationFn: (name: string) => management().addDomain(name),
@@ -155,14 +172,32 @@ export function useMailflare() {
         mutationFn: (id: string) => management().removeDestination(id),
         onSuccess: invalidateSetup,
     });
+    const resendConfirmation = useMutation({
+        mutationFn: (id: string) => management().resendConfirmation(id),
+    });
+    const setDomainShared = useMutation({
+        mutationFn: ({ zoneId, shared }: { zoneId: string; shared: boolean }) =>
+            management().setDomainShared(zoneId, shared),
+        onSuccess: invalidateSetup,
+    });
+
+    const isWorker = !!backend?.management;
+    // The admin token, or an account with the admin role.
+    const isAdmin = isWorker && account.data?.role === "admin";
 
     return {
         backend,
-        canManageDomains: !!backend?.management,
+        /** Worker: domains and destinations are managed in the app. */
+        canManageDomains: isWorker,
+        /** Worker: may add, remove and share domains (admins only). */
+        canEditDomains: isAdmin,
+        account,
         addDomain,
         removeDomain,
         addDestination,
         removeDestination,
+        resendConfirmation,
+        setDomainShared,
         selectedZoneId,
         setSelectedZoneId,
         zones,
@@ -174,4 +209,31 @@ export function useMailflare() {
         updateAlias,
         deleteAlias,
     };
+}
+
+/** Accounts on the Worker, for admins. */
+export function useAccountUsers(enabled: boolean) {
+    const backend = useBackend();
+    const queryClient = useQueryClient();
+    const management = backend?.management;
+
+    const users = useQuery({
+        queryKey: queryKeys.users(),
+        queryFn: () => {
+            if (!management) throw new Error("This backend has no accounts");
+            return management.listUsers();
+        },
+        enabled: enabled && !!management,
+        networkMode: "online",
+    });
+
+    const updateUser = useMutation({
+        mutationFn: ({ id, changes }: { id: string; changes: AccountUserChanges }) => {
+            if (!management) throw new Error("This backend has no accounts");
+            return management.updateUser(id, changes);
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.users() }),
+    });
+
+    return { users, updateUser };
 }

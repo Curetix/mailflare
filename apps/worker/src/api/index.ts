@@ -11,7 +11,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { validator } from "hono/validator";
 import { z } from "zod";
 
-import { AUTH_BASE_PATH, createAuth, type SessionUser } from "../accounts";
+import { type Auth, AUTH_BASE_PATH, createAuth, type SessionUser } from "../accounts";
 import {
     ALIAS_LOCAL_PART_PATTERN,
     DOMAIN_PATTERN,
@@ -29,7 +29,9 @@ import type * as Api from "./types";
 import { API_VERSION } from "./types";
 
 /** Who is calling: the deployment's admin token, or an account. */
-type Principal = { kind: "token" } | { kind: "user"; user: SessionUser };
+type Principal =
+    | { kind: "token" }
+    | { kind: "user"; user: SessionUser; sessionToken: string; auth: Auth };
 
 type AppEnv = { Bindings: Env; Variables: { db: Db; principal: Principal } };
 
@@ -198,7 +200,14 @@ v1.use(async (c, next) => {
         if (session?.user.banned) {
             throw new ApiException(403, "banned", "This account is suspended");
         }
-        if (session) principal = { kind: "user", user: session.user };
+        if (session) {
+            principal = {
+                kind: "user",
+                user: session.user,
+                sessionToken: session.session.token,
+                auth,
+            };
+        }
     }
     if (!principal) throw new ApiException(401, "unauthorized", "Invalid or missing API token");
 
@@ -217,6 +226,29 @@ v1.get("/me", (c) => {
                 : null,
         limits: limitsFor(c.env, principal),
     });
+});
+
+// Sessions: the Worker's app hands other apps (the extension) a session of
+// their own, so signing out of one doesn't sign out the other.
+
+v1.post("/sessions", async (c) => {
+    const { principal } = c.var;
+    if (principal.kind !== "user") {
+        throw new ApiException(400, "not_an_account", "Only accounts can authorize apps");
+    }
+    const context = await principal.auth.$context;
+    const session = await context.internalAdapter.createSession(principal.user.id);
+    return c.json<Api.NewSession>({ token: session.token }, 201);
+});
+
+/** Signs out the calling session; nothing to do for the admin token. */
+v1.delete("/session", async (c) => {
+    const { principal } = c.var;
+    if (principal.kind === "user") {
+        const context = await principal.auth.$context;
+        await context.internalAdapter.deleteSession(principal.sessionToken);
+    }
+    return c.body(null, 204);
 });
 
 // Domains: admins manage them; accounts see the shared ones.

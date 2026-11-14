@@ -22,6 +22,7 @@ import { useAuthStore } from "../stores/auth-store";
 import { type Settings, useSettingsStore } from "../stores/settings-store";
 import { useUIStore } from "../stores/ui-store";
 import { LogoutDialog } from "./logout-dialog";
+import { UsersDialog } from "./users-dialog";
 
 type SettingsItem = {
     key: string;
@@ -31,7 +32,7 @@ type SettingsItem = {
     hide?: boolean;
 };
 
-function SettingsList() {
+function SettingsList({ onLoggedOut }: { onLoggedOut: () => void }) {
     const queryClient = useQueryClient();
     const t = useTranslations("settings");
     const tc = useTranslations("common");
@@ -39,7 +40,7 @@ function SettingsList() {
     const ta = useTranslations("account");
     const accountError = useAccountErrorMessage();
     const { isExtension, lockedWorkerUrl } = useCloudflareConfig();
-    const { backend, zones, destinations, canManageDomains } = useMailflare();
+    const { backend, zones, destinations, canManageDomains, canEditDomains } = useMailflare();
     const setManageDomainsOpen = useUIStore((s) => s.setManageDomainsOpen);
 
     const apiToken = useAuthStore((s) => s.apiToken);
@@ -47,6 +48,7 @@ function SettingsList() {
     const updateSettings = useSettingsStore((s) => s.updateSettings);
 
     const [logoutOpen, setLogoutOpen] = useState(false);
+    const [usersOpen, setUsersOpen] = useState(false);
 
     // Passkeys belong to the Worker's domain, so only the app it serves can add them.
     const accountClient = useMemo(
@@ -166,6 +168,15 @@ function SettingsList() {
             ),
         },
         {
+            key: "accounts",
+            title: t("accounts.title"),
+            description: t("accounts.description"),
+            hide: !canEditDomains,
+            action: (
+                <Button size="sm" label={t("accounts.action")} onClick={() => setUsersOpen(true)} />
+            ),
+        },
+        {
             key: "refresh",
             title: t("refresh.title"),
             description: t("refresh.description"),
@@ -263,7 +274,12 @@ function SettingsList() {
                     {index < visibleItems.length - 1 && <Divider />}
                 </Fragment>
             ))}
-            <LogoutDialog open={logoutOpen} onClose={() => setLogoutOpen(false)} />
+            <UsersDialog open={usersOpen} onClose={() => setUsersOpen(false)} />
+            <LogoutDialog
+                open={logoutOpen}
+                onClose={() => setLogoutOpen(false)}
+                onLoggedOut={onLoggedOut}
+            />
         </VStack>
     );
 }
@@ -291,7 +307,7 @@ export function SettingsDrawer() {
             >
                 <DrawerHeader title={t("title")} onOpenChange={setOpen} />
                 <VStack padding={4}>
-                    <SettingsList />
+                    <SettingsList onLoggedOut={() => setOpen(false)} />
                 </VStack>
             </Drawer>
         </>

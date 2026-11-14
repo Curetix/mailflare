@@ -16,6 +16,8 @@ export type Connection =
 export type Zone = {
     id: string;
     name: string;
+    /** Worker: whether accounts may create aliases on it. */
+    shared?: boolean;
 };
 
 /** A domain aliases can be created on, and the zone it belongs to. */
@@ -63,6 +65,26 @@ export type NewAlias = {
 
 export type AliasChanges = Partial<Pick<Alias, "destination" | "description" | "enabled">>;
 
+/** Who is signed in to a Worker: its admin token, or an account. */
+export type Account = {
+    role: "admin" | "user";
+    /** Null for the admin token. */
+    user: { id: string; email: string } | null;
+    /** Limits of accounts without the admin role. */
+    limits: { aliases: number; destinations: number; sendsPerDay: number } | null;
+};
+
+/** An account on a Worker, as admins see it. */
+export type AccountUser = {
+    id: string;
+    email: string;
+    role: "admin" | "user";
+    emailVerified: boolean;
+    banned: boolean;
+};
+
+export type AccountUserChanges = Partial<Pick<AccountUser, "role" | "banned">>;
+
 /**
  * Domains and destinations the backend stores itself. Cloudflare keeps them in
  * its dashboard, so only the Worker backend offers this.
@@ -72,6 +94,12 @@ export interface DomainManagement {
     removeDomain(zoneId: string): Promise<void>;
     addDestination(email: string): Promise<Destination>;
     removeDestination(id: string): Promise<void>;
+    /** Mails a new confirmation link to an unconfirmed destination. */
+    resendConfirmation(id: string): Promise<void>;
+    setDomainShared(zoneId: string, shared: boolean): Promise<void>;
+    getAccount(): Promise<Account>;
+    listUsers(): Promise<AccountUser[]>;
+    updateUser(id: string, changes: AccountUserChanges): Promise<AccountUser>;
 }
 
 export interface AliasBackend {
