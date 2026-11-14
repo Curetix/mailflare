@@ -99,7 +99,7 @@ export class CloudflareApiClient {
             .json<CloudflareCreateEmailRuleResponse>();
     }
 
-    async deleteEmailRule(zoneId: string, rule: CloudflareEmailRule) {
+    async deleteEmailRule(zoneId: string, rule: Pick<CloudflareEmailRule, "tag">) {
         return ky
             .delete(`${this.baseUrl}/zones/${zoneId}/email/routing/rules/${rule.tag}`, {
                 headers: this.getHeaders(),

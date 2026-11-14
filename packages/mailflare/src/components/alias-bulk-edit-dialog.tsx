@@ -8,10 +8,9 @@ import { VStack } from "@astryxdesign/core/VStack";
 import { useState } from "react";
 import { useTranslations } from "use-intl";
 
-import { useCloudflareConfig } from "../api/config-context";
-import { useCloudflare } from "../api/use-cloudflare";
+import type { Alias } from "../backend/types";
+import { useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
-import type { Alias } from "../utils/alias";
 
 type Props = {
     open: boolean;
@@ -24,8 +23,7 @@ export function AliasBulkEditDialog({ open, onClose, selectedAliases }: Props) {
     const tf = useTranslations("alias_create");
     const tc = useTranslations("common");
     const toast = useToast();
-    const { apiBaseUrl } = useCloudflareConfig();
-    const { selectedZoneId, emailDestinations, updateEmailRule } = useCloudflare(apiBaseUrl);
+    const { destinations, updateAlias } = useMailflare();
     const { isOnline } = useOnlineStatus();
 
     const [destination, setDestination] = useState("");
@@ -33,26 +31,18 @@ export function AliasBulkEditDialog({ open, onClose, selectedAliases }: Props) {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const destinationOptions =
-        emailDestinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
+        destinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
 
     async function handleSave() {
         setIsSubmitting(true);
         try {
             await Promise.all(
-                selectedAliases.map((a) => {
-                    const updated = Object.assign(
-                        Object.create(Object.getPrototypeOf(a)),
-                        a,
-                    ) as Alias;
-                    updated.enabled = enabled;
-                    if (destination.trim() !== "") {
-                        updated.destination = destination;
-                    }
-                    return updateEmailRule.mutateAsync({
-                        rule: updated.toEmailRule(),
-                        zoneId: selectedZoneId,
-                    });
-                }),
+                selectedAliases.map((alias) =>
+                    updateAlias.mutateAsync({
+                        alias,
+                        changes: destination.trim() !== "" ? { enabled, destination } : { enabled },
+                    }),
+                ),
             );
             toast({ body: t("success") });
             onClose(true);

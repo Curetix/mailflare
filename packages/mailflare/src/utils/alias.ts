@@ -1,8 +1,6 @@
 import psl from "better-psl";
 import { generate as randomWords } from "random-words";
 
-import type { CloudflareEmailRule } from "../api/cloudflare-types";
-import { EMAIL_RULE_NAME_PREFIX } from "../const";
 import type { AliasSettings } from "../stores/alias-settings-store";
 import { randomString } from "./random-string";
 
@@ -49,85 +47,5 @@ export function generateAliasAddress({
             return prefix.toLowerCase();
         default:
             throw new Error("Invalid alias type.");
-    }
-}
-
-export class Alias {
-    address: string;
-    destination: string;
-    enabled: boolean;
-    name: string;
-    isExternal: boolean;
-    priority?: number;
-    tag?: string;
-
-    constructor(
-        address: string,
-        destination: string,
-        name: string,
-        enabled = true,
-        isExternal?: boolean,
-    ) {
-        this.address = address;
-        this.destination = destination;
-        this.enabled = enabled;
-        this.name = name.replace(EMAIL_RULE_NAME_PREFIX, "");
-        this.isExternal =
-            isExternal !== undefined
-                ? isExternal
-                : !name.toLowerCase().startsWith(EMAIL_RULE_NAME_PREFIX);
-    }
-
-    toString() {
-        return this.address;
-    }
-
-    static fromCustomAddress(address: string, destination: string, name: string) {
-        return new Alias(address, destination, name, true, false);
-    }
-
-    static fromOptions(
-        addressOptions: GenerateAliasOptions,
-        domain: string,
-        destination: string,
-        name: string,
-    ) {
-        const address = `${generateAliasAddress(addressOptions)}@${domain}`;
-        return new Alias(address, destination, name, true, false);
-    }
-
-    static fromCloudflareEmailRule(rule: CloudflareEmailRule) {
-        const matcher = rule.matchers[0];
-        const action = rule.actions[0];
-        if (!matcher || !action || matcher.type !== "literal" || action.type !== "forward") {
-            throw new Error("Rule is not supported by the Alias class");
-        }
-
-        const alias = new Alias(matcher.value, action.value[0] ?? "", rule.name, rule.enabled);
-        alias.tag = rule.tag;
-        alias.priority = rule.priority;
-        return alias;
-    }
-
-    toEmailRule(): CloudflareEmailRule {
-        return {
-            tag: this.tag ?? "",
-            name: this.isExternal ? this.name : `${EMAIL_RULE_NAME_PREFIX}${this.name}`,
-            enabled: this.enabled,
-            priority: this.priority ?? Math.round(Date.now() / 1000),
-            matchers: [
-                {
-                    type: "literal",
-                    field: "to",
-                    value: this.address,
-                },
-            ],
-            actions: [
-                {
-                    type: "forward",
-                    value: [this.destination],
-                },
-            ],
-        };
     }
 }

@@ -3,10 +3,9 @@ import { useToast } from "@astryxdesign/core/Toast";
 import { useState } from "react";
 import { useTranslations } from "use-intl";
 
-import { useCloudflareConfig } from "../api/config-context";
-import { useCloudflare } from "../api/use-cloudflare";
+import type { Alias } from "../backend/types";
+import { useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
-import type { Alias } from "../utils/alias";
 
 type Props = {
     open: boolean;
@@ -19,8 +18,7 @@ export function AliasBulkDeleteDialog({ open, onClose, selectedAliases }: Props)
     const td = useTranslations("alias_delete");
     const tc = useTranslations("common");
     const toast = useToast();
-    const { apiBaseUrl } = useCloudflareConfig();
-    const { selectedZoneId, deleteEmailRule } = useCloudflare(apiBaseUrl);
+    const { deleteAlias } = useMailflare();
     const { isOnline } = useOnlineStatus();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,11 +30,7 @@ export function AliasBulkDeleteDialog({ open, onClose, selectedAliases }: Props)
 
         setIsSubmitting(true);
         try {
-            await Promise.all(
-                selectedAliases.map((a) =>
-                    deleteEmailRule.mutateAsync({ rule: a.toEmailRule(), zoneId: selectedZoneId }),
-                ),
-            );
+            await Promise.all(selectedAliases.map((alias) => deleteAlias.mutateAsync(alias)));
             toast({ body: t("success") });
             onClose(true);
         } catch (error) {
