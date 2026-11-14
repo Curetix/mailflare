@@ -29,6 +29,8 @@ export type MailflareProviderProps = {
     isExtension?: boolean;
     /** The Worker's origin, when the Worker serves the app (see CloudflareConfig). */
     lockedWorkerUrl?: string;
+    /** Account sign-in for Workers (see CloudflareConfig). */
+    connectWorkerAccount?: (workerUrl: string) => Promise<string>;
     sessionStorageAdapter?: StorageAdapter;
 };
 
@@ -53,6 +55,7 @@ export function MailflareProvider({
     apiBaseUrl,
     isExtension = false,
     lockedWorkerUrl,
+    connectWorkerAccount,
     sessionStorageAdapter,
 }: MailflareProviderProps) {
     const [hydrated, setHydrated] = useState(false);
@@ -99,7 +102,9 @@ export function MailflareProvider({
                 persistOptions={{ persister }}
             >
                 <IntlProvider locale={locale} messages={messages}>
-                    <CloudflareConfigProvider value={{ apiBaseUrl, isExtension, lockedWorkerUrl }}>
+                    <CloudflareConfigProvider
+                        value={{ apiBaseUrl, isExtension, lockedWorkerUrl, connectWorkerAccount }}
+                    >
                         <ThemeProvider>{children}</ThemeProvider>
                     </CloudflareConfigProvider>
                 </IntlProvider>

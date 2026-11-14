@@ -39,6 +39,9 @@ export {
     verifyConnection,
 } from "./backend";
 export type {
+    Account,
+    AccountUser,
+    AccountUserChanges,
     Alias,
     AliasBackend,
     AliasChanges,

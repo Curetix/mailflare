@@ -7,7 +7,8 @@ export default defineConfig({
         name: "MailFlare - Email Alias Extension",
         description:
             "Create and manage email aliases using Cloudflare Email Routing directly from your browser.",
-        permissions: ["contextMenus", "storage", "clipboardWrite", "activeTab"],
+        // identity: signing in to a Mailflare Worker with an account.
+        permissions: ["contextMenus", "storage", "clipboardWrite", "activeTab", "identity"],
         host_permissions: ["https://api.cloudflare.com/*"],
     },
 });

@@ -5,6 +5,8 @@ import type * as Api from "@mailflare/worker/api";
 import ky, { isHTTPError, type KyInstance } from "ky";
 
 import type {
+    Account,
+    AccountUser,
     Alias,
     AliasBackend,
     AliasChanges,
@@ -49,7 +51,19 @@ export function normalizeWorkerUrl(input: string): string {
     return url.origin;
 }
 
-const toZone = (domain: Api.Domain): Zone => ({ id: domain.id, name: domain.name });
+const toZone = (domain: Api.Domain): Zone => ({
+    id: domain.id,
+    name: domain.name,
+    shared: domain.shared,
+});
+
+const toUser = (user: Api.User): AccountUser => ({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    emailVerified: user.emailVerified,
+    banned: user.banned,
+});
 
 const toDestination = (destination: Api.Destination): Destination => ({
     id: destination.id,
@@ -95,6 +109,35 @@ export class WorkerBackend implements AliasBackend {
                 ),
             removeDestination: async (id) => {
                 await call(this.http.delete(`destinations/${encodeURIComponent(id)}`));
+            },
+            resendConfirmation: async (id) => {
+                await call(this.http.post(`destinations/${encodeURIComponent(id)}/verify`));
+            },
+            setDomainShared: async (zoneId, shared) => {
+                const body: Api.UpdateDomain = { shared };
+                await call(
+                    this.http.patch(`domains/${encodeURIComponent(zoneId)}`, { json: body }),
+                );
+            },
+            getAccount: async (): Promise<Account> => {
+                const me = await call(this.http.get("me").json<Api.Me>());
+                return {
+                    role: me.role,
+                    user: me.user && { id: me.user.id, email: me.user.email },
+                    limits: me.limits,
+                };
+            },
+            listUsers: async () =>
+                (await call(this.http.get("users").json<Api.User[]>())).map(toUser),
+            updateUser: async (id, changes) => {
+                const body: Api.UpdateUser = changes;
+                return toUser(
+                    await call(
+                        this.http
+                            .patch(`users/${encodeURIComponent(id)}`, { json: body })
+                            .json<Api.User>(),
+                    ),
+                );
             },
         };
     }

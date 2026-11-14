@@ -3,15 +3,23 @@
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
+import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
+import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { useTranslations } from "use-intl";
 
-import { createAccountClient, unwrap, verifyDestination } from "../account/account-client";
+import {
+    createAccountClient,
+    createAppSession,
+    unwrap,
+    verifyDestination,
+} from "../account/account-client";
 import { useAccountErrorMessage } from "../account/use-account-error";
+import { WorkerBackend } from "../backend/worker-backend";
 
 type PageProps = { url: string; token: string; onDone: () => void };
 
@@ -114,6 +122,82 @@ export function VerifyDestinationPage({ url, token, onDone }: PageProps) {
                     />
                 </>
             )}
+        </VStack>
+    );
+}
+
+/** Where browsers send extensions' `identity.launchWebAuthFlow` results. */
+const EXTENSION_REDIRECT =
+    /^https:\/\/([a-p]{32}\.chromiumapp\.org|[0-9a-f]{40}\.extensions\.allizom\.org)\/[^#]*$/;
+
+export const isExtensionRedirect = (uri: string) => EXTENSION_REDIRECT.test(uri);
+
+/**
+ * `/authorize?redirect_uri=`: the extension asks for a session of its own
+ * (through `identity.launchWebAuthFlow`), which it gets in the redirect's
+ * fragment once the signed-in user allows it.
+ */
+export function AuthorizePage({
+    url,
+    apiToken,
+    redirectUri,
+}: {
+    url: string;
+    apiToken: string;
+    redirectUri: string;
+}) {
+    const t = useTranslations("account");
+    const errorMessage = useAccountErrorMessage();
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const account = useQuery({
+        queryKey: ["authorize-account", url, apiToken],
+        queryFn: () => new WorkerBackend(url, apiToken).management.getAccount(),
+        networkMode: "online",
+    });
+
+    const finish = (fragment: string) => window.location.replace(`${redirectUri}#${fragment}`);
+
+    async function allow() {
+        setBusy(true);
+        setError(null);
+        try {
+            const token = await createAppSession(url, apiToken);
+            finish(`token=${encodeURIComponent(token)}`);
+        } catch (failure) {
+            setError(errorMessage(failure));
+            setBusy(false);
+        }
+    }
+
+    if (account.isPending) return <Spinner />;
+    const email = account.data?.user?.email;
+
+    return (
+        <VStack gap={3}>
+            <Heading level={2}>{t("authorize.title")}</Heading>
+            {error && <Banner status="error" title={error} />}
+            {account.isError && <Banner status="error" title={errorMessage(account.error)} />}
+            {email ? (
+                <>
+                    <Text>{t("authorize.description", { email })}</Text>
+                    <Button
+                        variant="primary"
+                        width="100%"
+                        label={t("authorize.allow")}
+                        isLoading={busy}
+                        clickAction={allow}
+                    />
+                </>
+            ) : (
+                account.isSuccess && <Banner status="info" title={t("authorize.admin_token")} />
+            )}
+            <Button
+                width="100%"
+                label={t("authorize.deny")}
+                isDisabled={busy}
+                onClick={() => finish("error=access_denied")}
+            />
         </VStack>
     );
 }

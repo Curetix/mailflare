@@ -11,9 +11,11 @@ import { useAuthStore } from "../stores/auth-store";
 type Props = {
     open: boolean;
     onClose: () => void;
+    /** Called after logging out, for example to close the surrounding drawer. */
+    onLoggedOut?: () => void;
 };
 
-export function LogoutDialog({ open, onClose }: Props) {
+export function LogoutDialog({ open, onClose, onLoggedOut }: Props) {
     const t = useTranslations("settings.logout");
     const tc = useTranslations("common");
     const toast = useToast();
@@ -31,6 +33,7 @@ export function LogoutDialog({ open, onClose }: Props) {
         await storageAdapter.remove(StorageKeys.QueryCache);
         toast({ body: t("success") });
         onClose();
+        onLoggedOut?.();
     }
 
     return (

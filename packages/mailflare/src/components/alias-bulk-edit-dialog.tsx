@@ -30,8 +30,11 @@ export function AliasBulkEditDialog({ open, onClose, selectedAliases }: Props) {
     const [enabled, setEnabled] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Aliases can only forward to confirmed mailboxes.
     const destinationOptions =
-        destinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
+        destinations.data
+            ?.filter((d) => d.verified)
+            .map((d) => ({ value: d.email, label: d.email })) ?? [];
 
     async function handleSave() {
         setIsSubmitting(true);

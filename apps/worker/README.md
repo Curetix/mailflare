@@ -42,7 +42,9 @@ password, magic links, passkeys) under `/api/auth/*`, powered by
 [better-auth](https://better-auth.com). They sign in to the app the Worker
 serves; passkeys only work there, because they belong to the Worker's domain.
 Links in the Worker's emails (confirming an account or an inbox, signing in,
-resetting a password) open pages of that app.
+resetting a password) open pages of that app. The extension signs in to
+accounts through the app's `/authorize` page, which hands it a session of its
+own (via `identity.launchWebAuthFlow`).
 
 - Accounts create aliases on **shared** domains, forwarding to destinations
   they confirmed through a link the Worker mails them. The account's own email
@@ -132,6 +134,8 @@ in). Timestamps are Unix seconds. Errors look like
 | `POST`   | `/api/v1/aliases`                 | `{ address, destination, description?, enabled? }` |
 | `PATCH`  | `/api/v1/aliases/:id`             | `{ destination?, description?, enabled? }`         |
 | `DELETE` | `/api/v1/aliases/:id`             |                                                    |
+| `POST`   | `/api/v1/sessions`                | Accounts: a session for another app, `{ token }`   |
+| `DELETE` | `/api/v1/session`                 | Signs out the calling session                      |
 | `GET`    | `/api/v1/users`                   | Admins                                             |
 | `PATCH`  | `/api/v1/users/:id`               | Admins: `{ role?, banned? }`; banning signs out    |
 

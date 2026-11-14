@@ -38,6 +38,11 @@ export function AliasCreateDialog({ open, onClose }: Props) {
     const toast = useToast();
     const { isExtension } = useCloudflareConfig();
     const { selectedZoneId, zones, domains, destinations, aliases, createAlias } = useMailflare();
+    // Aliases can only forward to confirmed mailboxes.
+    const confirmed = useMemo(
+        () => destinations.data?.filter((d) => d.verified) ?? [],
+        [destinations.data],
+    );
 
     const aliasSettings = useAliasSettingsStore();
     const updateAliasSettings = useAliasSettingsStore((s) => s.updateAliasSettings);
@@ -111,17 +116,17 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                     description: hostname || "",
                     prefixFormat: hostname ? (aliasSettings.prefixFormat ?? "none") : "none",
                     customPrefix: "",
-                    destination: aliasSettings.destination ?? destinations.data?.[0]?.email ?? "",
+                    destination: aliasSettings.destination ?? confirmed[0]?.email ?? "",
                 });
             }
         }
     }, [open]);
 
     useEffect(() => {
-        if (watchAll.destination === "" && destinations.data && destinations.data.length > 0) {
-            setValue("destination", destinations.data[0]?.email ?? "");
+        if (watchAll.destination === "" && confirmed.length > 0) {
+            setValue("destination", confirmed[0]?.email ?? "");
         }
-    }, [destinations.data, watchAll.destination, setValue]);
+    }, [confirmed, watchAll.destination, setValue]);
 
     // Persist form draft to session storage on change
     useEffect(() => {
@@ -260,8 +265,7 @@ export function AliasCreateDialog({ open, onClose }: Props) {
     }
 
     const domainOptions = domains.data?.map((d) => ({ value: d.domain, label: d.domain })) ?? [];
-    const destinationOptions =
-        destinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
+    const destinationOptions = confirmed.map((d) => ({ value: d.email, label: d.email }));
 
     const formatOptions = [
         { value: "characters", label: t("format_characters") },

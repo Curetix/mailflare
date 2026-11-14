@@ -53,8 +53,11 @@ export function AliasEditDialog({ open, onClose, alias }: Props) {
         }
     }, [alias, open, reset]);
 
+    // Aliases can only forward to confirmed mailboxes (keeping the current one).
     const destinationOptions =
-        destinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
+        destinations.data
+            ?.filter((d) => d.verified || d.email === alias?.destination)
+            .map((d) => ({ value: d.email, label: d.email })) ?? [];
 
     function onSubmit(values: EditForm) {
         if (!alias) {

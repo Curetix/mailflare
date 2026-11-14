@@ -1,6 +1,8 @@
 import {
     StorageKeys,
+    WorkerBackend,
     createBackend,
+    normalizeWorkerUrl,
     generateAliasAddress,
     type Alias,
     type AliasSettings,
@@ -56,6 +58,38 @@ async function generateAliasInBackground(hostname: string): Promise<Alias> {
     });
 }
 
+/**
+ * Signs in to a Mailflare Worker with an account: the Worker's app asks the
+ * user to allow the extension and hands it a session of its own. Stores the
+ * connection like the popup's login does, since the sign-in window usually
+ * closes the popup.
+ */
+async function connectWorkerAccount(workerUrl: string): Promise<string> {
+    const url = normalizeWorkerUrl(workerUrl);
+    const authorize = new URL("/authorize", url);
+    authorize.searchParams.set("redirect_uri", chrome.identity.getRedirectURL());
+    const result = await chrome.identity.launchWebAuthFlow({
+        url: authorize.toString(),
+        interactive: true,
+    });
+    const params = new URLSearchParams(result ? new URL(result).hash.slice(1) : "");
+    const token = params.get("token");
+    if (!token) {
+        throw new Error(
+            !result || params.get("error") === "access_denied"
+                ? "Sign-in was cancelled"
+                : "The Worker didn't return a session",
+        );
+    }
+    const error = await WorkerBackend.verify(url, token);
+    if (error) throw new Error(error);
+
+    await chrome.storage.local.set({ [StorageKeys.ApiToken]: token, [StorageKeys.WorkerUrl]: url });
+    const stale: string[] = [StorageKeys.ZoneId, StorageKeys.QueryCache];
+    await chrome.storage.local.remove(stale);
+    return token;
+}
+
 export default defineBackground(() => {
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         if (info.menuItemId !== "mailflare-generate" || !info.pageUrl) return;
@@ -99,6 +133,24 @@ export default defineBackground(() => {
         }
         generateAliasInBackground(hostname)
             .then((alias) => sendResponse({ success: true, alias: alias.address }))
+            .catch((error: unknown) =>
+                sendResponse({
+                    success: false,
+                    message: error instanceof Error ? error.message : String(error),
+                }),
+            );
+        return true; // Keep the channel open for the async response.
+    });
+
+    // Account sign-in, requested by the popup (an extension page, never a tab).
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message?.command !== "connectWorkerAccount") return;
+        if (sender.id !== chrome.runtime.id || sender.tab || typeof message.url !== "string") {
+            sendResponse({ success: false, message: "Not allowed" });
+            return;
+        }
+        connectWorkerAccount(message.url)
+            .then((token) => sendResponse({ success: true, token }))
             .catch((error: unknown) =>
                 sendResponse({
                     success: false,

@@ -38,8 +38,16 @@ export function AliasList() {
     const t = useTranslations("alias_list");
     const tc = useTranslations("common");
 
-    const { selectedZoneId, setSelectedZoneId, zones, zoneStatus, aliases, canManageDomains } =
-        useMailflare();
+    const {
+        selectedZoneId,
+        setSelectedZoneId,
+        zones,
+        zoneStatus,
+        aliases,
+        canManageDomains,
+        canEditDomains,
+        account,
+    } = useMailflare();
 
     const ruleFilter = useSettingsStore((s) => s.ruleFilter);
     const { isOnline } = useOnlineStatus();
@@ -292,7 +300,9 @@ export function AliasList() {
             {!zones.isFetching &&
                 zones.isSuccess &&
                 zones.data.length === 0 &&
-                (canManageDomains ? (
+                (canManageDomains && account.isSuccess && !canEditDomains ? (
+                    <Banner status="info" title={t("no_shared_domains")} />
+                ) : canManageDomains ? (
                     <Banner
                         status="info"
                         title={t("no_worker_domains")}

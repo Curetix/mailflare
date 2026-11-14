@@ -70,11 +70,29 @@ export async function sessionFromCookie(workerUrl: string): Promise<string | nul
     return data?.session.token ?? null;
 }
 
-/** Ends an account session; harmless for the admin token. */
+/**
+ * Ends an account session (harmless for the admin token). Through the Worker's
+ * API rather than better-auth's sign-out, which refuses other origins such as
+ * the extension's.
+ */
 export async function signOutAccount(workerUrl: string, token: string) {
-    await createAccountClient(workerUrl, token)
-        .signOut()
+    await ky
+        .delete(`${workerUrl}/api/v1/session`, {
+            headers: { Authorization: `Bearer ${token}` },
+            retry: 0,
+        })
         .catch(() => {});
+}
+
+/** Creates a separate session for another app (the extension); returns its token. */
+export async function createAppSession(workerUrl: string, token: string): Promise<string> {
+    const { token: appToken } = await ky
+        .post(`${workerUrl}/api/v1/sessions`, {
+            headers: { Authorization: `Bearer ${token}` },
+            retry: 0,
+        })
+        .json<{ token: string }>();
+    return appToken;
 }
 
 /** Confirms a destination with the token from its confirmation email. */

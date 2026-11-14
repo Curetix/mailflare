@@ -3,6 +3,9 @@ export { createBackend, verifyConnection } from "./create-backend";
 export { WorkerBackend, normalizeWorkerUrl } from "./worker-backend";
 export { queryKeys, useBackend, useMailflare } from "./use-mailflare";
 export type {
+    Account,
+    AccountUser,
+    AccountUserChanges,
     Alias,
     AliasBackend,
     AliasChanges,
