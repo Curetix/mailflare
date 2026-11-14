@@ -3,6 +3,11 @@
     "name": "mailflare",
     "main": "src/index.ts",
     "compatibility_date": "2026-11-01",
+    // better-auth needs AsyncLocalStorage.
+    "compatibility_flags": ["nodejs_compat"],
+    // Settings (PUBLIC_SIGNUPS, ADMIN_EMAILS, MAIL_FROM, ...) are set in the
+    // dashboard; keep them across deploys. See README.md.
+    "keep_vars": true,
     "observability": { "enabled": true },
     // Re-sends incoming mail (free to verified destinations) and sends from
     // aliases (arbitrary recipients: Workers Paid plan with a sending domain).

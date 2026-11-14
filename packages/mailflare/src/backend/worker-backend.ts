@@ -54,9 +54,7 @@ const toZone = (domain: Api.Domain): Zone => ({ id: domain.id, name: domain.name
 const toDestination = (destination: Api.Destination): Destination => ({
     id: destination.id,
     email: destination.email,
-    // The Worker can't see Cloudflare's verification state; forwarding to an
-    // unverified destination fails at delivery time.
-    verified: true,
+    verified: destination.verified,
 });
 
 const toAlias = (alias: Api.Alias): Alias => ({

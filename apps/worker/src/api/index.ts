@@ -1,14 +1,17 @@
-// Management API for the Mailflare app. Personal mode: one admin, authenticated
-// with the ADMIN_TOKEN secret as a bearer token.
+// Management API for the Mailflare app and extension. Callers authenticate
+// with the ADMIN_TOKEN or an account session token, both as bearer tokens.
+// The token manages the deployment's own data; accounts manage their own
+// aliases and destinations, on shared domains unless they are admins.
 
-import { eq } from "drizzle-orm";
-import { Hono } from "hono";
+import { and, count, eq, isNull } from "drizzle-orm";
+import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { validator } from "hono/validator";
 import { z } from "zod";
 
+import { AUTH_BASE_PATH, createAuth, type SessionUser } from "../accounts";
 import {
     ALIAS_LOCAL_PART_PATTERN,
     DOMAIN_PATTERN,
@@ -16,10 +19,20 @@ import {
     splitAddress,
 } from "../addresses";
 import { createDb, type Db, schema } from "../db";
+import {
+    RESEND_INTERVAL_MS,
+    sendDestinationVerification,
+    VERIFY_PATH,
+    verifyDestination,
+} from "../destinations";
+import { getSettings } from "../settings";
 import type * as Api from "./types";
 import { API_VERSION } from "./types";
 
-type AppEnv = { Bindings: Env; Variables: { db: Db } };
+/** Who is calling: the deployment's admin token, or an account. */
+type Principal = { kind: "token" } | { kind: "user"; user: SessionUser };
+
+type AppEnv = { Bindings: Env; Variables: { db: Db; principal: Principal } };
 
 class ApiException extends HTTPException {
     constructor(
@@ -55,12 +68,14 @@ const seconds = (date: Date) => Math.floor(date.getTime() / 1000);
 const toDomain = (d: typeof schema.domains.$inferSelect): Api.Domain => ({
     id: d.id,
     name: d.name,
+    shared: d.shared,
     createdAt: seconds(d.createdAt),
 });
 
 const toDestination = (d: typeof schema.destinations.$inferSelect): Api.Destination => ({
     id: d.id,
     email: d.email,
+    verified: d.verifiedAt !== null,
     createdAt: seconds(d.createdAt),
 });
 
@@ -80,6 +95,16 @@ const toAlias = (
     lastEmailAt: a.lastEmailAt ? seconds(a.lastEmailAt) : null,
 });
 
+const toUser = (u: typeof schema.user.$inferSelect): Api.User => ({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.role === "admin" ? "admin" : "user",
+    emailVerified: u.emailVerified,
+    banned: u.banned ?? false,
+    createdAt: seconds(u.createdAt),
+});
+
 const emailSchema = z
     .string()
     .trim()
@@ -94,17 +119,47 @@ const domainSchema = z
 
 const descriptionSchema = z.string().max(500);
 
-async function findDestination(db: Db, email: string) {
-    const destination = await db.query.destinations.findFirst({ where: { email } });
+const isAdmin = (p: Principal) => p.kind === "token" || p.user.role === "admin";
+
+/** The user_id of rows the caller owns (null: the token's own rows). */
+const ownerOf = (p: Principal) => (p.kind === "user" ? p.user.id : null);
+
+/** Relational-query filter for rows owned by the caller. */
+const owned = (p: Principal) => {
+    const owner = ownerOf(p);
+    return owner === null ? { userId: { isNull: true as const } } : { userId: owner };
+};
+
+function requireAdmin(p: Principal) {
+    if (!isAdmin(p)) throw new ApiException(403, "forbidden", "Only admins can do this");
+}
+
+function limitsFor(env: Env, p: Principal): Api.Limits | null {
+    return isAdmin(p) ? null : getSettings(env).limits;
+}
+
+const originOf = (c: Context) => new URL(c.req.url).origin;
+
+async function findDestination(db: Db, p: Principal, email: string) {
+    const destination = await db.query.destinations.findFirst({
+        where: { email, ...owned(p) },
+    });
     if (!destination) {
         throw new ApiException(400, "unknown_destination", `Unknown destination ${email}`);
+    }
+    if (!destination.verifiedAt) {
+        throw new ApiException(
+            400,
+            "unverified_destination",
+            `Confirm ${email} with the link we mailed to it first`,
+        );
     }
     return destination;
 }
 
-async function getAlias(db: Db, id: string) {
+async function getAlias(db: Db, p: Principal, id: string) {
     const alias = await db.query.aliases.findFirst({
-        where: { id },
+        where: { id, ...owned(p) },
         with: { destination: true },
     });
     if (!alias) throw notFound("Alias");
@@ -124,45 +179,94 @@ async function tokensMatch(given: string, expected: string) {
 const v1 = new Hono<AppEnv>();
 
 v1.use(async (c, next) => {
-    const expected = c.env.ADMIN_TOKEN;
-    // Fail closed: without a configured token, nobody gets in.
-    if (!expected) {
-        throw new ApiException(503, "not_configured", "Set the ADMIN_TOKEN secret to use the API");
-    }
     const header = c.req.header("Authorization") ?? "";
     const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
-    if (!token || !(await tokensMatch(token, expected))) {
-        throw new ApiException(401, "unauthorized", "Invalid or missing API token");
+    const auth = createAuth(c.env, c.executionCtx, originOf(c));
+    // Fail closed: without a token or accounts configured, nobody gets in.
+    if (!c.env.ADMIN_TOKEN && !auth) {
+        throw new ApiException(
+            503,
+            "not_configured",
+            "Set the ADMIN_TOKEN or AUTH_SECRET secret to use the API",
+        );
     }
+
+    let principal: Principal | null = null;
+    if (token && c.env.ADMIN_TOKEN && (await tokensMatch(token, c.env.ADMIN_TOKEN))) {
+        principal = { kind: "token" };
+    } else if (auth) {
+        const session = await auth.api.getSession({ headers: c.req.raw.headers });
+        if (session?.user.banned) {
+            throw new ApiException(403, "banned", "This account is suspended");
+        }
+        if (session) principal = { kind: "user", user: session.user };
+    }
+    if (!principal) throw new ApiException(401, "unauthorized", "Invalid or missing API token");
+
     c.set("db", createDb(c.env.DB));
+    c.set("principal", principal);
     await next();
 });
 
-v1.get("/me", (c) => c.json<Api.Me>({ role: "admin" }));
+v1.get("/me", (c) => {
+    const { principal } = c.var;
+    return c.json<Api.Me>({
+        role: isAdmin(principal) ? "admin" : "user",
+        user:
+            principal.kind === "user"
+                ? { id: principal.user.id, email: principal.user.email, name: principal.user.name }
+                : null,
+        limits: limitsFor(c.env, principal),
+    });
+});
 
-// Domains
+// Domains: admins manage them; accounts see the shared ones.
 
 v1.get("/domains", async (c) => {
-    const rows = await c.var.db.query.domains.findMany({ orderBy: { name: "asc" } });
+    const rows = await c.var.db.query.domains.findMany({
+        ...(!isAdmin(c.var.principal) && { where: { shared: true } }),
+        orderBy: { name: "asc" },
+    });
     return c.json<Api.Domain[]>(rows.map(toDomain));
 });
 
-v1.post("/domains", json(z.object({ name: domainSchema })), async (c) => {
+v1.post(
+    "/domains",
+    json(z.object({ name: domainSchema, shared: z.boolean().optional() })),
+    async (c) => {
+        requireAdmin(c.var.principal);
+        const { db } = c.var;
+        const { name, shared } = c.req.valid("json");
+        if (await db.query.domains.findFirst({ where: { name } })) {
+            throw new ApiException(409, "already_exists", `Domain ${name} already exists`);
+        }
+        // Forwarding to an address on our own domain would loop.
+        if (await db.query.destinations.findFirst({ where: { email: { like: `%@${name}` } } })) {
+            throw new ApiException(400, "mail_loop", `A destination already uses ${name}`);
+        }
+        const [domain] = await db
+            .insert(schema.domains)
+            .values({ name, shared: shared ?? false })
+            .returning();
+        return c.json<Api.Domain>(toDomain(domain!), 201);
+    },
+);
+
+v1.patch("/domains/:id", json(z.object({ shared: z.boolean().optional() })), async (c) => {
+    requireAdmin(c.var.principal);
     const { db } = c.var;
-    const { name } = c.req.valid("json");
-    if (await db.query.domains.findFirst({ where: { name } })) {
-        throw new ApiException(409, "already_exists", `Domain ${name} already exists`);
+    const id = c.req.param("id");
+    const { shared } = c.req.valid("json");
+    if (shared !== undefined) {
+        await db.update(schema.domains).set({ shared }).where(eq(schema.domains.id, id));
     }
-    // Forwarding to an address on our own domain would loop.
-    const destinations = await db.query.destinations.findMany();
-    if (destinations.some((d) => splitAddress(d.email)?.domain === name)) {
-        throw new ApiException(400, "mail_loop", `A destination already uses ${name}`);
-    }
-    const [domain] = await db.insert(schema.domains).values({ name }).returning();
-    return c.json<Api.Domain>(toDomain(domain!), 201);
+    const domain = await db.query.domains.findFirst({ where: { id } });
+    if (!domain) throw notFound("Domain");
+    return c.json<Api.Domain>(toDomain(domain));
 });
 
 v1.delete("/domains/:id", async (c) => {
+    requireAdmin(c.var.principal);
     const { db } = c.var;
     const id = c.req.param("id");
     if (!(await db.query.domains.findFirst({ where: { id } }))) throw notFound("Domain");
@@ -176,28 +280,77 @@ v1.delete("/domains/:id", async (c) => {
 // Destinations
 
 v1.get("/destinations", async (c) => {
-    const rows = await c.var.db.query.destinations.findMany({ orderBy: { email: "asc" } });
+    const rows = await c.var.db.query.destinations.findMany({
+        where: owned(c.var.principal),
+        orderBy: { email: "asc" },
+    });
     return c.json<Api.Destination[]>(rows.map(toDestination));
 });
 
 v1.post("/destinations", json(z.object({ email: emailSchema })), async (c) => {
-    const { db } = c.var;
+    const { db, principal } = c.var;
     const { email } = c.req.valid("json");
-    if (await db.query.destinations.findFirst({ where: { email } })) {
+    if (await db.query.destinations.findFirst({ where: { email, ...owned(principal) } })) {
         throw new ApiException(409, "already_exists", `Destination ${email} already exists`);
     }
     const domain = splitAddress(email)?.domain ?? "";
     if (await db.query.domains.findFirst({ where: { name: domain } })) {
         throw new ApiException(400, "mail_loop", "Destinations cannot use this Worker's domains");
     }
-    const [destination] = await db.insert(schema.destinations).values({ email }).returning();
+    const limits = limitsFor(c.env, principal);
+    if (limits) {
+        const [row] = await db
+            .select({ total: count() })
+            .from(schema.destinations)
+            .where(eq(schema.destinations.userId, ownerOf(principal)!));
+        if ((row?.total ?? 0) >= limits.destinations) {
+            throw new ApiException(
+                403,
+                "limit_reached",
+                `Accounts can have up to ${limits.destinations} destinations`,
+            );
+        }
+    }
+
+    // The token's destinations are verified in Cloudflare by the admin; an
+    // account's verified email needs no second confirmation.
+    const preVerified =
+        principal.kind === "token" ||
+        (principal.user.emailVerified && principal.user.email.toLowerCase() === email);
+    const [destination] = await db
+        .insert(schema.destinations)
+        .values({ email, userId: ownerOf(principal), verifiedAt: preVerified ? new Date() : null })
+        .returning();
+    if (!preVerified) {
+        await sendDestinationVerification(c.env, db, destination!, originOf(c));
+    }
     return c.json<Api.Destination>(toDestination(destination!), 201);
 });
 
+/** Mails a new verification link. */
+v1.post("/destinations/:id/verify", async (c) => {
+    const { db, principal } = c.var;
+    const destination = await db.query.destinations.findFirst({
+        where: { id: c.req.param("id"), ...owned(principal) },
+    });
+    if (!destination) throw notFound("Destination");
+    if (destination.verifiedAt) {
+        throw new ApiException(409, "already_verified", "This destination is already verified");
+    }
+    const lastSent = destination.verificationSentAt?.getTime() ?? 0;
+    if (Date.now() - lastSent < RESEND_INTERVAL_MS) {
+        throw new ApiException(429, "too_soon", "Wait a minute before requesting another email");
+    }
+    await sendDestinationVerification(c.env, db, destination, originOf(c));
+    return c.body(null, 204);
+});
+
 v1.delete("/destinations/:id", async (c) => {
-    const { db } = c.var;
+    const { db, principal } = c.var;
     const id = c.req.param("id");
-    if (!(await db.query.destinations.findFirst({ where: { id } }))) throw notFound("Destination");
+    if (!(await db.query.destinations.findFirst({ where: { id, ...owned(principal) } }))) {
+        throw notFound("Destination");
+    }
     if (await db.query.aliases.findFirst({ where: { destinationId: id } })) {
         throw new ApiException(409, "in_use", "Aliases still forward to this destination");
     }
@@ -210,8 +363,7 @@ v1.delete("/destinations/:id", async (c) => {
 v1.get("/aliases", async (c) => {
     const domainId = c.req.query("domainId");
     const rows = await c.var.db.query.aliases.findMany({
-        // Drizzle rejects `where: undefined`, so only add the filter when given.
-        ...(domainId && { where: { domainId } }),
+        where: { ...owned(c.var.principal), ...(domainId && { domainId }) },
         with: { destination: true },
         orderBy: { createdAt: "desc" },
     });
@@ -229,7 +381,7 @@ v1.post(
         }),
     ),
     async (c) => {
-        const { db } = c.var;
+        const { db, principal } = c.var;
         const body = c.req.valid("json");
         const address = normalizeAddress(body.address);
         const parts = splitAddress(address);
@@ -241,21 +393,36 @@ v1.post(
             );
         }
         const domain = await db.query.domains.findFirst({ where: { name: parts.domain } });
-        if (!domain) {
+        if (!domain || (!domain.shared && !isAdmin(principal))) {
             throw new ApiException(
                 400,
                 "unknown_domain",
-                `Domain ${parts.domain} is not configured`,
+                `Domain ${parts.domain} is not available`,
             );
         }
         if (await db.query.aliases.findFirst({ where: { address } })) {
             throw new ApiException(409, "already_exists", `Alias ${address} already exists`);
         }
-        const destination = await findDestination(db, body.destination);
+        const limits = limitsFor(c.env, principal);
+        if (limits) {
+            const [row] = await db
+                .select({ total: count() })
+                .from(schema.aliases)
+                .where(eq(schema.aliases.userId, ownerOf(principal)!));
+            if ((row?.total ?? 0) >= limits.aliases) {
+                throw new ApiException(
+                    403,
+                    "limit_reached",
+                    `Accounts can have up to ${limits.aliases} aliases`,
+                );
+            }
+        }
+        const destination = await findDestination(db, principal, body.destination);
         const [alias] = await db
             .insert(schema.aliases)
             .values({
                 address,
+                userId: ownerOf(principal),
                 domainId: domain.id,
                 destinationId: destination.id,
                 description: body.description ?? "",
@@ -276,12 +443,14 @@ v1.patch(
         }),
     ),
     async (c) => {
-        const { db } = c.var;
+        const { db, principal } = c.var;
         const id = c.req.param("id");
         const body = c.req.valid("json");
-        await getAlias(db, id);
+        await getAlias(db, principal, id);
         const destination =
-            body.destination !== undefined ? await findDestination(db, body.destination) : null;
+            body.destination !== undefined
+                ? await findDestination(db, principal, body.destination)
+                : null;
         const changes = {
             ...(destination && { destinationId: destination.id }),
             ...(body.description !== undefined && { description: body.description }),
@@ -290,33 +459,108 @@ v1.patch(
         if (Object.keys(changes).length > 0) {
             await db.update(schema.aliases).set(changes).where(eq(schema.aliases.id, id));
         }
-        return c.json<Api.Alias>(toAlias(await getAlias(db, id)));
+        return c.json<Api.Alias>(toAlias(await getAlias(db, principal, id)));
     },
 );
 
 v1.delete("/aliases/:id", async (c) => {
-    const { db } = c.var;
+    const { db, principal } = c.var;
+    const { aliases } = schema;
     const id = c.req.param("id");
-    const result = await db.delete(schema.aliases).where(eq(schema.aliases.id, id)).returning();
+    const owner = ownerOf(principal);
+    const result = await db
+        .delete(aliases)
+        .where(
+            and(
+                eq(aliases.id, id),
+                owner === null ? isNull(aliases.userId) : eq(aliases.userId, owner),
+            ),
+        )
+        .returning();
     if (result.length === 0) throw notFound("Alias");
     return c.body(null, 204);
 });
 
-export const app = new Hono<AppEnv>();
+// Accounts (admins only)
+
+v1.get("/users", async (c) => {
+    requireAdmin(c.var.principal);
+    const rows = await c.var.db.query.user.findMany({ orderBy: { createdAt: "asc" } });
+    return c.json<Api.User[]>(rows.map(toUser));
+});
+
+v1.patch(
+    "/users/:id",
+    json(z.object({ role: z.enum(["admin", "user"]).optional(), banned: z.boolean().optional() })),
+    async (c) => {
+        const { db, principal } = c.var;
+        requireAdmin(principal);
+        const id = c.req.param("id");
+        const body = c.req.valid("json");
+        if (principal.kind === "user" && principal.user.id === id) {
+            throw new ApiException(400, "self", "You cannot change your own role or ban yourself");
+        }
+        const changes = {
+            ...(body.role !== undefined && { role: body.role }),
+            ...(body.banned !== undefined && { banned: body.banned }),
+        };
+        if (Object.keys(changes).length > 0) {
+            await db.update(schema.user).set(changes).where(eq(schema.user.id, id));
+        }
+        // Banned accounts are signed out everywhere.
+        if (body.banned) await db.delete(schema.session).where(eq(schema.session.userId, id));
+        const user = await db.query.user.findFirst({ where: { id } });
+        if (!user) throw notFound("User");
+        return c.json<Api.User>(toUser(user));
+    },
+);
+
+export const app = new Hono<{ Bindings: Env }>();
 
 // Bearer tokens, no cookies: any origin may call the API (the app runs in
-// browsers and extensions), but only with the token.
+// browsers and extensions), but only with a token.
 app.use(
     "/api/*",
     cors({
         origin: "*",
         allowHeaders: ["Authorization", "Content-Type"],
         allowMethods: ["GET", "POST", "PATCH", "DELETE"],
+        // The bearer plugin returns new session tokens in this header.
+        exposeHeaders: ["set-auth-token"],
         maxAge: 86400,
     }),
 );
 
-app.get("/api/info", (c) => c.json<Api.ApiInfo>({ name: "mailflare", apiVersion: API_VERSION }));
+app.get("/api/info", (c) =>
+    c.json<Api.ApiInfo>({
+        name: "mailflare",
+        apiVersion: API_VERSION,
+        accounts: {
+            enabled: Boolean(c.env.AUTH_SECRET),
+            publicSignups: Boolean(c.env.AUTH_SECRET) && getSettings(c.env).publicSignups,
+        },
+    }),
+);
+
+app.on(["GET", "POST"], `${AUTH_BASE_PATH}/*`, (c) => {
+    const auth = createAuth(c.env, c.executionCtx, originOf(c));
+    if (!auth) {
+        throw new ApiException(503, "not_configured", "Set the AUTH_SECRET secret for accounts");
+    }
+    return auth.handler(c.req.raw);
+});
+
+app.get(VERIFY_PATH, async (c) => {
+    const token = c.req.query("token") ?? "";
+    const verified = token ? await verifyDestination(createDb(c.env.DB), token) : false;
+    return c.text(
+        verified
+            ? "Inbox confirmed. Your Mailflare aliases can now forward here."
+            : "This link is invalid or has expired. Request a new one in the Mailflare app.",
+        verified ? 200 : 400,
+    );
+});
+
 app.route("/api/v1", v1);
 
 app.notFound((c) =>

@@ -14,6 +14,9 @@
         "check-types": "tsc --noEmit"
     },
     "dependencies": {
+        "@better-auth/drizzle-adapter": "~1.7.22",
+        "@better-auth/passkey": "~1.7.22",
+        "better-auth": "~1.7.22",
         "drizzle-orm": "1.0.0-rc.5",
         "hono": "^4.13.18",
         "zod": "^4.6.7"
@@ -30,6 +33,9 @@
         "bindings": {
             "ADMIN_TOKEN": {
                 "description": "Token the Mailflare app uses to manage your aliases. Use a long random string, for example from `openssl rand -base64 32`, and keep it: you enter it in the app to connect."
+            },
+            "AUTH_SECRET": {
+                "description": "Secret that signs account sessions. Use another long random string, for example from `openssl rand -base64 32`. You never need to enter it anywhere."
             },
             "DB": {
                 "description": "D1 database for your domains, destinations and aliases. Created automatically."

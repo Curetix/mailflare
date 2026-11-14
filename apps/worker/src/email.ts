@@ -4,7 +4,8 @@
 //   reverse addresses so replies go out through the alias. Without the
 //   send_email binding (or if sending fails), it is forwarded unchanged.
 // - Mail from the alias owner to a reverse address is sent to that contact,
-//   from the alias.
+//   from the alias. Accounts without the admin role may only send to the
+//   alias's contacts (people who mailed it), within a daily limit.
 
 import { EmailMessage } from "cloudflare:email";
 import { and, eq, sql } from "drizzle-orm";
@@ -21,6 +22,7 @@ import {
     type ReverseTarget,
 } from "./reverse";
 import { ALIAS_HEADER, rewriteInbound, rewriteOutbound } from "./rewrite";
+import { getSettings } from "./settings";
 
 export { ALIAS_HEADER };
 
@@ -32,6 +34,7 @@ export const REJECT_REASON = "Address does not exist";
 
 type AliasWithDestination = typeof schema.aliases.$inferSelect & {
     destination: typeof schema.destinations.$inferSelect;
+    user: typeof schema.user.$inferSelect | null;
 };
 
 /** Splits a recipient into the alias address and the subaddress tag (original case). */
@@ -47,7 +50,10 @@ export function parseRecipient(recipient: string): { address: string; tag: strin
 }
 
 function findAlias(db: Db, address: string) {
-    return db.query.aliases.findFirst({ where: { address }, with: { destination: true } });
+    return db.query.aliases.findFirst({
+        where: { address },
+        with: { destination: true, user: true },
+    });
 }
 
 type Outcome = "forwarded" | "blocked" | "sent";
@@ -65,8 +71,8 @@ function record(db: Db, aliasId: string, outcome: Outcome) {
         .where(eq(aliases.id, aliasId));
 }
 
-/** The stored short key for a contact, created on first use. */
-async function reverseKey(db: Db, aliasId: string, email: string): Promise<string> {
+/** Records a contact of the alias; returns its short key. */
+async function contactKey(db: Db, aliasId: string, email: string): Promise<string> {
     const { reverseContacts } = schema;
     const where = and(eq(reverseContacts.aliasId, aliasId), eq(reverseContacts.email, email));
     const [existing] = await db.select().from(reverseContacts).where(where);
@@ -80,16 +86,41 @@ async function reverseKey(db: Db, aliasId: string, email: string): Promise<strin
     return row!.key;
 }
 
+/** Whether the owner may send from the alias to anyone, not just its contacts. */
+const unrestricted = (alias: AliasWithDestination) =>
+    alias.userId === null || alias.user?.role === "admin";
+
 async function resolveReverse(
     db: Db,
     alias: AliasWithDestination,
     target: ReverseTarget,
 ): Promise<string | null> {
-    if (target.kind === "address") return target.contact;
+    if (target.kind === "address") {
+        if (unrestricted(alias)) return target.contact;
+        const known = await db.query.reverseContacts.findFirst({
+            where: { aliasId: alias.id, email: target.contact.toLowerCase() },
+        });
+        return known ? target.contact : null;
+    }
     const row = await db.query.reverseContacts.findFirst({
         where: { key: target.key, aliasId: alias.id },
     });
     return row?.email ?? null;
+}
+
+/** Counts a message toward the owner's daily limit; false once it is reached. */
+async function withinDailyLimit(env: Env, db: Db, userId: string): Promise<boolean> {
+    const { sendUsage } = schema;
+    const day = new Date().toISOString().slice(0, 10);
+    const [usage] = await db
+        .insert(sendUsage)
+        .values({ userId, day, count: 1 })
+        .onConflictDoUpdate({
+            target: [sendUsage.userId, sendUsage.day],
+            set: { count: sql`${sendUsage.count} + 1` },
+        })
+        .returning({ count: sendUsage.count });
+    return (usage?.count ?? 0) <= getSettings(env).limits.sendsPerDay;
 }
 
 /** EmailMessage takes a string or a stream; a stream keeps 8-bit bodies intact. */
@@ -119,12 +150,14 @@ async function deliverToOwner(
             const rewritten = await rewriteInbound(parseMessage(raw), {
                 alias: alias.address,
                 envelopeFrom: message.from,
-                toReverse: async (contact) =>
-                    readableReverseAddress(alias.address, contact) ??
-                    keyedReverseAddress(
-                        alias.address,
-                        await reverseKey(db, alias.id, contact.toLowerCase()),
-                    ),
+                toReverse: async (contact) => {
+                    // Recorded either way: replying to it is what contacts allow.
+                    const key = await contactKey(db, alias.id, contact.toLowerCase());
+                    return (
+                        readableReverseAddress(alias.address, contact) ??
+                        keyedReverseAddress(alias.address, key)
+                    );
+                },
             });
             await env.EMAIL.send(
                 new EmailMessage(alias.address, destination, mime(serializeMessage(rewritten))),
@@ -152,7 +185,15 @@ async function sendAsAlias(
     }
     const contact = await resolveReverse(db, alias, target);
     if (!contact) {
-        message.setReject("Unknown reverse address");
+        message.setReject(
+            unrestricted(alias)
+                ? "Unknown reverse address"
+                : "You can only reply to people who have emailed this alias",
+        );
+        return false;
+    }
+    if (!unrestricted(alias) && !(await withinDailyLimit(env, db, alias.userId!))) {
+        message.setReject("You have reached today's sending limit");
         return false;
     }
     const rewritten = await rewriteOutbound(parseMessage(raw), {
@@ -192,6 +233,9 @@ export async function handleEmail(
     const raw = new Uint8Array(await new Response(message.raw).arrayBuffer());
     const target = recipient.tag ? parseReverseTag(recipient.tag) : null;
 
+    // Suspended accounts and unconfirmed inboxes get nothing, like disabled aliases.
+    const active = alias.enabled && !alias.user?.banned && alias.destination.verifiedAt !== null;
+
     if (target) {
         const { headers } = parseMessage(raw);
         const sender = checkSender(headers, message.from, alias.destination.email);
@@ -205,7 +249,7 @@ export async function handleEmail(
             return;
         }
         if (sender.owner) {
-            if (!alias.enabled) {
+            if (!active) {
                 message.setReject("This alias is disabled");
                 return;
             }
@@ -217,7 +261,7 @@ export async function handleEmail(
         // Anyone else writing to a reverse address is just mailing the alias.
     }
 
-    if (!alias.enabled) {
+    if (!active) {
         ctx.waitUntil(record(db, alias.id, "blocked"));
         message.setReject(REJECT_REASON);
         return;
