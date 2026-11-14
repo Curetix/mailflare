@@ -1,4 +1,10 @@
-export { useAuthStore, initAuthStore, hydrateAuthStore, type AuthState } from "./auth-store";
+export {
+    useAuthStore,
+    initAuthStore,
+    hydrateAuthStore,
+    getConnection,
+    type AuthState,
+} from "./auth-store";
 export {
     useSettingsStore,
     initSettingsStore,

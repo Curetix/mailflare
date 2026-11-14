@@ -28,14 +28,25 @@ export type {
 } from "./api/cloudflare-types";
 
 // Backend
-export { CloudflareBackend, queryKeys, useBackend, useMailflare } from "./backend";
+export {
+    CloudflareBackend,
+    WorkerBackend,
+    createBackend,
+    normalizeWorkerUrl,
+    queryKeys,
+    useBackend,
+    useMailflare,
+    verifyConnection,
+} from "./backend";
 export type {
     Alias,
     AliasBackend,
     AliasChanges,
     AliasDomain,
     BackendKind,
+    Connection,
     Destination,
+    DomainManagement,
     NewAlias,
     Zone,
     ZoneStatus,

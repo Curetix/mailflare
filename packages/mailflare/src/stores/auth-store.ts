@@ -1,12 +1,16 @@
 import { create } from "zustand";
 
+import type { Connection } from "../backend/types";
 import type { StorageAdapter } from "../storage/storage";
 import { StorageKeys } from "../storage/storage";
 
 export type AuthState = {
+    /** Cloudflare API token, or the Worker's admin token in Worker mode. */
     apiToken: string | null;
+    /** Set in Worker mode: the Mailflare Worker's base URL. */
+    workerUrl: string | null;
     selectedZoneId: string | null;
-    setToken: (token: string | null) => void;
+    connect: (connection: Connection) => void;
     setZone: (zoneId: string | null) => void;
     logout: () => void;
 };
@@ -17,14 +21,26 @@ export function initAuthStore(adapter: StorageAdapter) {
     _authStorage = adapter;
 }
 
+/** The current connection, derived from the stored credentials. */
+export function getConnection(state: Pick<AuthState, "apiToken" | "workerUrl">): Connection | null {
+    if (!state.apiToken) return null;
+    return state.workerUrl
+        ? { kind: "worker", url: state.workerUrl, token: state.apiToken }
+        : { kind: "cloudflare", token: state.apiToken };
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
     apiToken: null,
+    workerUrl: null,
     selectedZoneId: null,
-    setToken: (token) => {
-        set({ apiToken: token });
+    connect: (connection) => {
+        const workerUrl = connection.kind === "worker" ? connection.url : null;
+        set({ apiToken: connection.token, workerUrl, selectedZoneId: null });
         if (_authStorage) {
-            if (token) _authStorage.set(StorageKeys.ApiToken, token);
-            else _authStorage.remove(StorageKeys.ApiToken);
+            _authStorage.set(StorageKeys.ApiToken, connection.token);
+            if (workerUrl) _authStorage.set(StorageKeys.WorkerUrl, workerUrl);
+            else _authStorage.remove(StorageKeys.WorkerUrl);
+            _authStorage.remove(StorageKeys.ZoneId);
         }
     },
     setZone: (zoneId) => {
@@ -35,16 +51,20 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
     },
     logout: () => {
-        set({ apiToken: null, selectedZoneId: null });
+        set({ apiToken: null, workerUrl: null, selectedZoneId: null });
         if (_authStorage) {
             _authStorage.remove(StorageKeys.ApiToken);
+            _authStorage.remove(StorageKeys.WorkerUrl);
             _authStorage.remove(StorageKeys.ZoneId);
         }
     },
 }));
 
 export async function hydrateAuthStore(adapter: StorageAdapter) {
-    const apiToken = await adapter.get<string>(StorageKeys.ApiToken);
-    const selectedZoneId = await adapter.get<string>(StorageKeys.ZoneId);
-    useAuthStore.setState({ apiToken, selectedZoneId });
+    const [apiToken, workerUrl, selectedZoneId] = await Promise.all([
+        adapter.get<string>(StorageKeys.ApiToken),
+        adapter.get<string>(StorageKeys.WorkerUrl),
+        adapter.get<string>(StorageKeys.ZoneId),
+    ]);
+    useAuthStore.setState({ apiToken, workerUrl, selectedZoneId });
 }

@@ -20,6 +20,7 @@ Create and manage email aliases with Cloudflare Email Routing, from your browser
 - [Introduction](guides/introduction.md)
 - [Installation](guides/installation.md)
 - [API Token Setup](guides/api-token.md)
+- [Worker Mode](guides/worker-mode.md)
 - [Self-Hosting](guides/self-hosting.md)
 
 ## Features

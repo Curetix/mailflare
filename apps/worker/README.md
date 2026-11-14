@@ -5,7 +5,8 @@ Point a domain's catch-all rule at the Worker. It forwards mail for your aliases
 and rejects everything else. Aliases live in D1, so you aren't limited to
 Email Routing's 200 rules per domain.
 
-Status: in development. The Mailflare app can't connect to the Worker yet.
+To set it up and connect the Mailflare app, see the
+[Worker mode guide](../../docs/guides/worker-mode.md).
 
 ## How it handles mail
 
@@ -39,7 +40,8 @@ writes a new folder under `migrations/`, and Wrangler applies it.
 ## Deploy
 
 ```sh
-pnpm deploy                                 # creates the D1 database on first deploy
+pnpm exec wrangler deploy                   # first time only: creates the D1 database
+pnpm run deploy                             # applies migrations, then deploys
 pnpm exec wrangler secret put ADMIN_TOKEN   # a long random string
 ```
 

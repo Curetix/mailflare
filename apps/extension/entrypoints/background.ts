@@ -1,6 +1,6 @@
 import {
-    CloudflareBackend,
     StorageKeys,
+    createBackend,
     generateAliasAddress,
     type Alias,
     type AliasSettings,
@@ -23,11 +23,13 @@ async function sendTabMessage(tabId: number | undefined, message: TabMessage) {
 async function generateAliasInBackground(hostname: string): Promise<Alias> {
     const storage = await chrome.storage.local.get([
         StorageKeys.ApiToken,
+        StorageKeys.WorkerUrl,
         StorageKeys.ZoneId,
         StorageKeys.AliasSettings,
     ]);
 
     const apiToken = storage[StorageKeys.ApiToken] as string | undefined;
+    const workerUrl = storage[StorageKeys.WorkerUrl] as string | undefined;
     const zoneId = storage[StorageKeys.ZoneId] as string | undefined;
     const aliasSettings = storage[StorageKeys.AliasSettings] as AliasSettings | undefined;
 
@@ -38,7 +40,11 @@ async function generateAliasInBackground(hostname: string): Promise<Alias> {
         throw new Error("Cannot generate alias with custom format from background");
     }
 
-    const backend = new CloudflareBackend(apiToken);
+    const backend = createBackend(
+        workerUrl
+            ? { kind: "worker", url: workerUrl, token: apiToken }
+            : { kind: "cloudflare", token: apiToken },
+    );
     const zone = (await backend.listZones()).find((z) => z.id === zoneId);
     if (!zone) throw new Error("Selected domain is not valid");
 
