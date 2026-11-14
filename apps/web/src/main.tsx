@@ -22,6 +22,7 @@ createRoot(document.getElementById("root")!).render(
             messages={messages}
             apiBaseUrl="/api"
             isExtension={false}
+            lockedWorkerUrl={import.meta.env.VITE_LOCKED_WORKER ? location.origin : undefined}
         >
             <MailflareApp />
         </MailflareProvider>

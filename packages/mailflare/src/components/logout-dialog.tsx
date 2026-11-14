@@ -3,6 +3,7 @@ import { useToast } from "@astryxdesign/core/Toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "use-intl";
 
+import { signOutAccount } from "../account/account-client";
 import { useStorage } from "../storage/context";
 import { StorageKeys } from "../storage/storage";
 import { useAuthStore } from "../stores/auth-store";
@@ -21,6 +22,10 @@ export function LogoutDialog({ open, onClose }: Props) {
     const storageAdapter = useStorage();
 
     async function handleLogout() {
+        // End an account session on the Worker too, so its token stops working
+        // (and a Worker-served app doesn't sign back in with the cookie).
+        const { apiToken, workerUrl } = useAuthStore.getState();
+        if (apiToken && workerUrl) await signOutAccount(workerUrl, apiToken);
         logout();
         await queryClient.invalidateQueries();
         await storageAdapter.remove(StorageKeys.QueryCache);

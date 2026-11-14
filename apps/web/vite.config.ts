@@ -2,11 +2,21 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig({
+// `--mode worker` builds the app a Mailflare Worker serves itself: locked to
+// that Worker, with its API on the same origin.
+export default defineConfig(({ mode }) => ({
+    define: {
+        "import.meta.env.VITE_LOCKED_WORKER": JSON.stringify(mode === "worker"),
+    },
     plugins: [
         react(),
         VitePWA({
             registerType: "autoUpdate",
+            workbox: {
+                // Links into the Worker's API (email verification, magic links)
+                // must reach the Worker, not the cached app.
+                navigateFallbackDenylist: [/^\/api\//],
+            },
             manifest: {
                 name: "Mailflare",
                 short_name: "Mailflare",
@@ -38,4 +48,4 @@ export default defineConfig({
             },
         },
     },
-});
+}));

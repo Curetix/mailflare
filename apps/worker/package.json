@@ -7,8 +7,9 @@
         "./api": "./src/api/types.ts"
     },
     "scripts": {
-        "dev": "wrangler d1 migrations apply DB --local && wrangler dev",
-        "deploy": "wrangler deploy && wrangler d1 migrations apply DB --remote",
+        "dev": "node scripts/build-app.mjs --dev && wrangler d1 migrations apply DB --local && wrangler dev",
+        "build": "node scripts/build-app.mjs",
+        "deploy": "node scripts/build-app.mjs && wrangler deploy && wrangler d1 migrations apply DB --remote",
         "db:generate": "drizzle-kit generate",
         "test": "vitest run",
         "check-types": "tsc --noEmit"

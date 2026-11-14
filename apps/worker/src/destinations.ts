@@ -6,7 +6,8 @@ import { and, eq, gt } from "drizzle-orm";
 import { type Db, schema } from "./db";
 import { sendAccountEmail } from "./mailer";
 
-export const VERIFY_PATH = "/api/verify-destination";
+/** The app page the link opens; it confirms with a POST, so link scanners can't. */
+export const VERIFY_PAGE = "/verify-destination";
 const LINK_LIFETIME_MS = 24 * 60 * 60 * 1000;
 /** Minimum time between two verification emails to the same destination. */
 export const RESEND_INTERVAL_MS = 60 * 1000;
@@ -36,7 +37,7 @@ export async function sendDestinationVerification(
         .update(schema.destinations)
         .set({ verificationHash: await sha256(token), verificationSentAt: new Date() })
         .where(eq(schema.destinations.id, destination.id));
-    const url = `${origin}${VERIFY_PATH}?token=${token}`;
+    const url = `${origin}${VERIFY_PAGE}?token=${token}`;
     await sendAccountEmail(env, db, {
         to: destination.email,
         subject: "Confirm this inbox for Mailflare",
