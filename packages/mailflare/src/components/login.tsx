@@ -12,8 +12,10 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 
-import { useCloudflare } from "../api/use-cloudflare";
+import { useCloudflareConfig } from "../api/config-context";
+import { CloudflareBackend } from "../backend/cloudflare-backend";
 import { useOnlineStatus } from "../hooks/use-online-status";
+import { useAuthStore } from "../stores/auth-store";
 
 const tokenSchema = z.object({
     token: z.string().min(1),
@@ -28,10 +30,11 @@ const TOKEN_PERMISSIONS = [
     "Zone | Zone Settings | Read",
 ];
 
-export function Login({ apiBaseUrl }: { apiBaseUrl?: string }) {
+export function Login() {
     const t = useTranslations("login");
     const toast = useToast();
-    const cloudflare = useCloudflare(apiBaseUrl);
+    const { apiBaseUrl } = useCloudflareConfig();
+    const setToken = useAuthStore((s) => s.setToken);
     const { isOnline } = useOnlineStatus();
 
     const {
@@ -46,8 +49,9 @@ export function Login({ apiBaseUrl }: { apiBaseUrl?: string }) {
     const { isPending, mutate } = useMutation({
         mutationKey: ["verifyToken"],
         mutationFn: async (token: string) => {
-            const result = await cloudflare.verifyToken(token, true);
-            if (!result.success) throw result.error;
+            const error = await CloudflareBackend.verifyToken(token, apiBaseUrl);
+            if (error) throw new Error(error);
+            setToken(token);
         },
         onError: () => {
             toast({ body: t("login_error"), type: "error" });

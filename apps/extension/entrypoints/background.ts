@@ -1,7 +1,8 @@
 import {
-    CloudflareApiClient,
-    Alias,
+    CloudflareBackend,
     StorageKeys,
+    generateAliasAddress,
+    type Alias,
     type AliasSettings,
 } from "@mailflare/core/headless";
 import { defineBackground } from "wxt/utils/define-background";
@@ -37,23 +38,16 @@ async function generateAliasInBackground(hostname: string): Promise<Alias> {
         throw new Error("Cannot generate alias with custom format from background");
     }
 
-    const apiClient = new CloudflareApiClient(apiToken);
-    const zones = await apiClient.getZones();
-    const zone = zones.success ? zones.result.find((z) => z.id === zoneId) : undefined;
-
+    const backend = new CloudflareBackend(apiToken);
+    const zone = (await backend.listZones()).find((z) => z.id === zoneId);
     if (!zone) throw new Error("Selected domain is not valid");
 
-    const alias = Alias.fromOptions(
-        { ...aliasSettings, hostname },
-        zone.name,
-        aliasSettings.destination,
-        hostname,
-    );
-
-    const result = await apiClient.createEmailRule(zoneId, alias.toEmailRule());
-    if (!result.success) throw new Error(result.errors[0]?.message ?? "Could not create alias");
-
-    return alias;
+    return backend.createAlias({
+        zoneId,
+        address: `${generateAliasAddress({ ...aliasSettings, hostname })}@${zone.name}`,
+        destination: aliasSettings.destination,
+        description: hostname,
+    });
 }
 
 export default defineBackground(() => {
@@ -77,7 +71,7 @@ export default defineBackground(() => {
                     timeout: 5000,
                 },
             });
-            await sendTabMessage(tab?.id, { command: "copyText", text: alias.toString() });
+            await sendTabMessage(tab?.id, { command: "copyText", text: alias.address });
         } catch (error: any) {
             await sendTabMessage(tab?.id, {
                 command: "showAlert",
@@ -98,7 +92,7 @@ export default defineBackground(() => {
             return;
         }
         generateAliasInBackground(hostname)
-            .then((alias) => sendResponse({ success: true, alias: alias.toString() }))
+            .then((alias) => sendResponse({ success: true, alias: alias.address }))
             .catch((error: unknown) =>
                 sendResponse({
                     success: false,

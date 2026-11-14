@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-import { EMAIL_RULE_NAME_PREFIX } from "../../const";
-import { CloudflareApiClient } from "../cloudflare-client";
+import type { AliasBackend } from "../../backend/types";
 import { AddyClient } from "./addy-client";
 import { SimpleLoginClient } from "./simplelogin-client";
 import type { ImportedAlias, ImportProgress, ImportResult, ImportService } from "./types";
@@ -68,13 +67,11 @@ export function useImport() {
     const importAliases = useCallback(
         async (
             aliases: ImportedAlias[],
-            cfApiToken: string,
+            backend: AliasBackend,
             domainToZoneId: Record<string, string>,
             destination: string,
-            cfApiBaseUrl?: string,
         ): Promise<ImportResult> => {
             abortRef.current = false;
-            const cfClient = new CloudflareApiClient(cfApiToken, cfApiBaseUrl);
             const result: ImportResult = { imported: 0, skipped: 0, failed: 0, errors: [] };
 
             setProgress({
@@ -99,12 +96,14 @@ export function useImport() {
                 }
 
                 try {
-                    await cfClient.createEmailRule(zoneId, {
-                        matchers: [{ field: "to", type: "literal", value: alias.email }],
-                        actions: [{ type: "forward", value: [destination] }],
+                    await backend.createAlias({
+                        zoneId,
+                        address: alias.email,
+                        destination,
+                        description: alias.description || alias.localPart,
                         enabled: alias.enabled,
-                        name: `${EMAIL_RULE_NAME_PREFIX}${alias.description || alias.localPart}`,
-                        priority: 0,
+                        // Sort imported aliases after the ones created in Mailflare.
+                        order: 0,
                     });
                     result.imported++;
                 } catch (error) {

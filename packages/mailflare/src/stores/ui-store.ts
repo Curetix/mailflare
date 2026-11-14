@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
+import type { Alias } from "../backend/types";
 import type { StorageAdapter } from "../storage/storage";
-import type { Alias } from "../utils/alias";
 import type { AliasFormat, AliasPrefixFormat } from "./alias-settings-store";
 
 const UI_STATE_KEY = "ui-state";
@@ -40,8 +40,8 @@ export type UIState = {
     deleteOpen: boolean;
     selectEnabled: boolean;
     searchVisible: boolean;
-    aliasToEditTag: string | null;
-    aliasToDeleteTag: string | null;
+    aliasToEditId: string | null;
+    aliasToDeleteId: string | null;
 
     // Form draft
     createFormDraft: CreateFormDraft | null;
@@ -60,8 +60,8 @@ export type UIState = {
     setDeleteOpen: (open: boolean) => void;
     setSelectEnabled: (enabled: boolean) => void;
     setSearchVisible: (visible: boolean) => void;
-    setAliasToEditTag: (tag: string | null) => void;
-    setAliasToDeleteTag: (tag: string | null) => void;
+    setAliasToEditId: (id: string | null) => void;
+    setAliasToDeleteId: (id: string | null) => void;
     setCreateFormDraft: (draft: CreateFormDraft | null) => void;
     setScrollPosition: (pos: number) => void;
 };
@@ -113,8 +113,8 @@ export const useUIStore = create<UIState>((set, get) => ({
     deleteOpen: false,
     selectEnabled: false,
     searchVisible: false,
-    aliasToEditTag: null,
-    aliasToDeleteTag: null,
+    aliasToEditId: null,
+    aliasToDeleteId: null,
 
     createFormDraft: null,
     scrollPosition: 0,
@@ -127,7 +127,7 @@ export const useUIStore = create<UIState>((set, get) => ({
     setSelectedAliases: (selectedAliases) => set({ selectedAliases }),
     toggleAliasSelection: (alias) => {
         const current = get().selectedAliases;
-        const index = current.findIndex((a) => a.tag === alias.tag);
+        const index = current.findIndex((a) => a.id === alias.id);
         if (index > -1) {
             set({ selectedAliases: current.filter((_, i) => i !== index) });
         } else {
@@ -149,8 +149,8 @@ export const useUIStore = create<UIState>((set, get) => ({
         set({ searchVisible });
         persistState(get());
     },
-    setAliasToEditTag: (aliasToEditTag) => set({ aliasToEditTag }),
-    setAliasToDeleteTag: (aliasToDeleteTag) => set({ aliasToDeleteTag }),
+    setAliasToEditId: (aliasToEditId) => set({ aliasToEditId }),
+    setAliasToDeleteId: (aliasToDeleteId) => set({ aliasToDeleteId }),
     setCreateFormDraft: (createFormDraft) => {
         set({ createFormDraft });
         persistState(get());

@@ -12,11 +12,9 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 
-import { useCloudflareConfig } from "../api/config-context";
-import { useCloudflare } from "../api/use-cloudflare";
-import { EMAIL_RULE_NAME_PREFIX } from "../const";
+import type { Alias } from "../backend/types";
+import { useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
-import type { Alias } from "../utils/alias";
 
 type Props = {
     open: boolean;
@@ -37,8 +35,7 @@ export function AliasEditDialog({ open, onClose, alias }: Props) {
     const tf = useTranslations("alias_create");
     const tc = useTranslations("common");
     const toast = useToast();
-    const { apiBaseUrl } = useCloudflareConfig();
-    const { selectedZoneId, emailDestinations, updateEmailRule } = useCloudflare(apiBaseUrl);
+    const { destinations, updateAlias } = useMailflare();
     const { isOnline } = useOnlineStatus();
 
     const { handleSubmit, control, reset } = useForm<EditForm>({
@@ -49,7 +46,7 @@ export function AliasEditDialog({ open, onClose, alias }: Props) {
     useEffect(() => {
         if (alias && open) {
             reset({
-                description: alias.name.replace(EMAIL_RULE_NAME_PREFIX, "").trim(),
+                description: alias.description.trim(),
                 destination: alias.destination,
                 enabled: alias.enabled,
             });
@@ -57,7 +54,7 @@ export function AliasEditDialog({ open, onClose, alias }: Props) {
     }, [alias, open, reset]);
 
     const destinationOptions =
-        emailDestinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
+        destinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
 
     function onSubmit(values: EditForm) {
         if (!alias) {
@@ -65,13 +62,8 @@ export function AliasEditDialog({ open, onClose, alias }: Props) {
             return;
         }
 
-        const updated = Object.assign(Object.create(Object.getPrototypeOf(alias)), alias) as Alias;
-        updated.name = values.description;
-        updated.destination = values.destination;
-        updated.enabled = values.enabled;
-
-        updateEmailRule.mutate(
-            { rule: updated.toEmailRule(), zoneId: selectedZoneId },
+        updateAlias.mutate(
+            { alias, changes: values },
             {
                 onSuccess: () => {
                     toast({ body: t("success") });
@@ -99,7 +91,7 @@ export function AliasEditDialog({ open, onClose, alias }: Props) {
                                 type="submit"
                                 variant="primary"
                                 label={t("save")}
-                                isLoading={updateEmailRule.isPending}
+                                isLoading={updateAlias.isPending}
                                 isDisabled={!isOnline}
                                 tooltip={!isOnline ? tc("offline") : undefined}
                             />

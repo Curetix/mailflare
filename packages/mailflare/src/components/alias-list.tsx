@@ -19,11 +19,11 @@ import {
 } from "react-icons/tb";
 import { useTranslations } from "use-intl";
 
-import { useCloudflare } from "../api/use-cloudflare";
+import type { Alias } from "../backend/types";
+import { useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
 import { useSettingsStore } from "../stores/settings-store";
 import { useUIStore } from "../stores/ui-store";
-import { Alias } from "../utils/alias";
 import { sort } from "../utils/sort";
 import { AliasBulkDeleteDialog } from "./alias-bulk-delete-dialog";
 import { AliasBulkEditDialog } from "./alias-bulk-edit-dialog";
@@ -32,12 +32,11 @@ import { AliasCreateDialog } from "./alias-create-dialog";
 import { AliasDeleteDialog } from "./alias-delete-dialog";
 import { AliasEditDialog } from "./alias-edit-dialog";
 
-export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
+export function AliasList() {
     const t = useTranslations("alias_list");
     const tc = useTranslations("common");
 
-    const { accountId, selectedZoneId, setSelectedZoneId, zones, emailRoutingStatus, emailRules } =
-        useCloudflare(apiBaseUrl);
+    const { selectedZoneId, setSelectedZoneId, zones, zoneStatus, aliases } = useMailflare();
 
     const ruleFilter = useSettingsStore((s) => s.ruleFilter);
     const { isOnline } = useOnlineStatus();
@@ -56,10 +55,10 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
     const setSelectEnabled = useUIStore((s) => s.setSelectEnabled);
     const searchVisible = useUIStore((s) => s.searchVisible);
     const setSearchVisible = useUIStore((s) => s.setSearchVisible);
-    const aliasToEditTag = useUIStore((s) => s.aliasToEditTag);
-    const setAliasToEditTag = useUIStore((s) => s.setAliasToEditTag);
-    const aliasToDeleteTag = useUIStore((s) => s.aliasToDeleteTag);
-    const setAliasToDeleteTag = useUIStore((s) => s.setAliasToDeleteTag);
+    const aliasToEditId = useUIStore((s) => s.aliasToEditId);
+    const setAliasToEditId = useUIStore((s) => s.setAliasToEditId);
+    const aliasToDeleteId = useUIStore((s) => s.aliasToDeleteId);
+    const setAliasToDeleteId = useUIStore((s) => s.setAliasToDeleteId);
     const scrollPosition = useUIStore((s) => s.scrollPosition);
     const setScrollPosition = useUIStore((s) => s.setScrollPosition);
 
@@ -67,33 +66,35 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
 
     const [filteredAliases, setFilteredAliases] = useState<Alias[]>([]);
 
+    // Select the first zone once zones are known and none is selected yet.
     useEffect(() => {
-        if (!emailRules.isSuccess || !emailRules.data || emailRules.data.length === 0) {
+        const firstZone = zones.data?.[0];
+        if (selectedZoneId === null && firstZone) setSelectedZoneId(firstZone.id);
+    }, [zones.data, selectedZoneId, setSelectedZoneId]);
+
+    useEffect(() => {
+        if (!aliases.isSuccess || !aliases.data || aliases.data.length === 0) {
             setFilteredAliases([]);
             return;
         }
+        const search = aliasSearch.toLowerCase();
         setFilteredAliases(
             sort(
-                emailRules.data
+                aliases.data
+                    .filter((a) => (ruleFilter ? !a.isExternal : true))
                     .filter(
-                        (r) =>
-                            r.matchers[0]?.type === "literal" && r.actions[0]?.type === "forward",
-                    )
-                    .map((r) => Alias.fromCloudflareEmailRule(r))
-                    .filter((r) => (ruleFilter ? !r.isExternal : true))
-                    .filter(
-                        (r) =>
-                            aliasSearch === "" ||
-                            r.name.toLowerCase().includes(aliasSearch.toLowerCase()) ||
-                            r.address.toLowerCase().includes(aliasSearch.toLowerCase()),
+                        (a) =>
+                            search === "" ||
+                            a.description.toLowerCase().includes(search) ||
+                            a.address.toLowerCase().includes(search),
                     ),
-                { order: "desc", by: (item) => item.priority as number },
+                { order: "desc", by: (item) => item.order },
             ),
         );
-    }, [emailRules.isSuccess, emailRules.data, ruleFilter, aliasSearch]);
+    }, [aliases.isSuccess, aliases.data, ruleFilter, aliasSearch]);
 
-    const aliasToEdit = filteredAliases.find((a) => a.tag === aliasToEditTag) ?? null;
-    const aliasToDelete = filteredAliases.find((a) => a.tag === aliasToDeleteTag) ?? null;
+    const aliasToEdit = filteredAliases.find((a) => a.id === aliasToEditId) ?? null;
+    const aliasToDelete = filteredAliases.find((a) => a.id === aliasToDeleteId) ?? null;
 
     // Restore scroll position after aliases load
     useEffect(() => {
@@ -109,12 +110,7 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
     }, [setScrollPosition]);
 
     const noZoneSelected = !zones.data || zones.data.length === 0 || selectedZoneId === null;
-    const routingStatus = emailRoutingStatus.data?.success ? emailRoutingStatus.data.result : null;
-    const routingNotReady =
-        !!selectedZoneId &&
-        !!routingStatus &&
-        (routingStatus.enabled === false || routingStatus.status !== "ready");
-    const selectedZoneName = zones.data?.find((z) => z.id === selectedZoneId)?.name ?? "";
+    const routingNotReady = !!selectedZoneId && zoneStatus.data?.ready === false;
 
     return (
         <VStack gap={2}>
@@ -124,7 +120,7 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
                 open={editOpen && !!aliasToEdit && selectedAliases.length === 0}
                 onClose={() => {
                     setEditOpen(false);
-                    setAliasToEditTag(null);
+                    setAliasToEditId(null);
                 }}
                 alias={aliasToEdit}
             />
@@ -145,7 +141,7 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
                 open={deleteOpen && !!aliasToDelete && selectedAliases.length === 0}
                 onClose={() => {
                     setDeleteOpen(false);
-                    setAliasToDeleteTag(null);
+                    setAliasToDeleteId(null);
                 }}
                 alias={aliasToDelete}
             />
@@ -229,7 +225,7 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
                             label={searchVisible ? t("stop_search") : t("search")}
                             tooltip={searchVisible ? t("stop_search") : t("search")}
                             icon={searchVisible ? <TbSearchOff /> : <TbSearch />}
-                            isDisabled={!emailRules.data || emailRules.data.length === 0}
+                            isDisabled={!aliases.data || aliases.data.length === 0}
                             onClick={() => {
                                 setSearchVisible(!searchVisible);
                                 setAliasSearch("");
@@ -240,9 +236,9 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
                             label={t("refresh")}
                             tooltip={t("refresh")}
                             icon={<TbRefresh />}
-                            isLoading={emailRules.isFetching}
+                            isLoading={aliases.isFetching}
                             isDisabled={!isOnline || noZoneSelected}
-                            onClick={() => emailRules.refetch()}
+                            onClick={() => aliases.refetch()}
                         />
                     </>
                 )}
@@ -266,17 +262,16 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
                     status="warning"
                     title={t("email_routing_not_enabled")}
                     endContent={
-                        <Link
-                            href={`https://dash.cloudflare.com/${accountId}/${selectedZoneName}/email/routing/overview`}
-                            isExternalLink
-                        >
-                            {t("email_routing_dashboard")}
-                        </Link>
+                        zoneStatus.data?.setupUrl && (
+                            <Link href={zoneStatus.data.setupUrl} isExternalLink>
+                                {t("email_routing_dashboard")}
+                            </Link>
+                        )
                     }
                 />
             )}
 
-            {!!selectedZoneId && filteredAliases.length === 0 && emailRules.isFetching && (
+            {!!selectedZoneId && filteredAliases.length === 0 && aliases.isFetching && (
                 <HStack justify="center" paddingBlock={4}>
                     <Spinner />
                 </HStack>
@@ -291,15 +286,12 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
             )}
 
             {!!selectedZoneId &&
-                emailRules.isSuccess &&
-                !emailRules.isFetching &&
+                aliases.isSuccess &&
+                !aliases.isFetching &&
                 filteredAliases.length === 0 && <Banner status="info" title={t("no_rules")} />}
 
-            {emailRules.isError && !zones.isError && (
-                <Banner
-                    status="error"
-                    title={t("rules_error", { error: String(emailRules.error) })}
-                />
+            {aliases.isError && !zones.isError && (
+                <Banner status="error" title={t("rules_error", { error: String(aliases.error) })} />
             )}
 
             {/* ALIAS LIST */}
@@ -309,20 +301,20 @@ export function AliasList({ apiBaseUrl }: { apiBaseUrl?: string }) {
                 style={{ flex: filteredAliases.length > 0 ? 1 : undefined, overflowY: "auto" }}
             >
                 <VStack gap={2}>
-                    {emailRules.isSuccess &&
+                    {aliases.isSuccess &&
                         filteredAliases.map((alias) => (
                             <AliasCard
-                                key={alias.tag}
+                                key={alias.id}
                                 alias={alias}
                                 selectEnabled={selectEnabled}
-                                isSelected={selectedAliases.some((a) => a.tag === alias.tag)}
+                                isSelected={selectedAliases.some((a) => a.id === alias.id)}
                                 onSelect={() => toggleAliasSelection(alias)}
                                 onEdit={() => {
-                                    setAliasToEditTag(alias.tag ?? null);
+                                    setAliasToEditId(alias.id);
                                     setEditOpen(true);
                                 }}
                                 onDelete={() => {
-                                    setAliasToDeleteTag(alias.tag ?? null);
+                                    setAliasToDeleteId(alias.id);
                                     setDeleteOpen(true);
                                 }}
                             />

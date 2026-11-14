@@ -14,7 +14,7 @@ import { LuExternalLink, LuImport, LuSettings } from "react-icons/lu";
 import { useTranslations } from "use-intl";
 
 import { useCloudflareConfig } from "../api/config-context";
-import { useCloudflare } from "../api/use-cloudflare";
+import { useMailflare } from "../backend/use-mailflare";
 import { GITHUB_LINK } from "../const";
 import { useAuthStore } from "../stores/auth-store";
 import { type Settings, useSettingsStore } from "../stores/settings-store";
@@ -33,8 +33,8 @@ function SettingsList() {
     const t = useTranslations("settings");
     const tc = useTranslations("common");
     const toast = useToast();
-    const { apiBaseUrl, isExtension } = useCloudflareConfig();
-    const { zones, emailDestinations } = useCloudflare(apiBaseUrl);
+    const { isExtension } = useCloudflareConfig();
+    const { zones, destinations } = useMailflare();
 
     const apiToken = useAuthStore((s) => s.apiToken);
     const settings = useSettingsStore();
@@ -120,7 +120,7 @@ function SettingsList() {
                 <Button
                     size="sm"
                     label={t("refresh.action")}
-                    isLoading={zones.isFetching || emailDestinations.isFetching}
+                    isLoading={zones.isFetching || destinations.isFetching}
                     clickAction={async () => {
                         await queryClient.invalidateQueries();
                         toast({ body: t("refresh.success") });

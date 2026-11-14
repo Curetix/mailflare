@@ -15,10 +15,8 @@ import { TbRefresh } from "react-icons/tb";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 
-import type { CloudflareEmailRule } from "../api/cloudflare-types";
 import { useCloudflareConfig } from "../api/config-context";
-import { useCloudflare } from "../api/use-cloudflare";
-import { EMAIL_RULE_NAME_PREFIX } from "../const";
+import { useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
 import {
     useAliasSettingsStore,
@@ -38,9 +36,8 @@ export function AliasCreateDialog({ open, onClose }: Props) {
     const t = useTranslations("alias_create");
     const tc = useTranslations("common");
     const toast = useToast();
-    const { apiBaseUrl, isExtension } = useCloudflareConfig();
-    const { selectedZoneId, zones, domains, emailDestinations, emailRules, createEmailRule } =
-        useCloudflare(apiBaseUrl);
+    const { isExtension } = useCloudflareConfig();
+    const { selectedZoneId, zones, domains, destinations, aliases, createAlias } = useMailflare();
 
     const aliasSettings = useAliasSettingsStore();
     const updateAliasSettings = useAliasSettingsStore((s) => s.updateAliasSettings);
@@ -104,7 +101,7 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                 reset({
                     domain:
                         aliasSettings.domain ??
-                        domains.find((d) => d.zoneId === selectedZoneId)?.domain ??
+                        domains.data?.find((d) => d.zoneId === selectedZoneId)?.domain ??
                         "",
                     format: aliasSettings.format ?? "characters",
                     characterCount: aliasSettings.characterCount ?? 5,
@@ -114,22 +111,17 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                     description: hostname || "",
                     prefixFormat: hostname ? (aliasSettings.prefixFormat ?? "none") : "none",
                     customPrefix: "",
-                    destination:
-                        aliasSettings.destination ?? emailDestinations.data?.[0]?.email ?? "",
+                    destination: aliasSettings.destination ?? destinations.data?.[0]?.email ?? "",
                 });
             }
         }
     }, [open]);
 
     useEffect(() => {
-        if (
-            watchAll.destination === "" &&
-            emailDestinations.data &&
-            emailDestinations.data.length > 0
-        ) {
-            setValue("destination", emailDestinations.data[0]?.email ?? "");
+        if (watchAll.destination === "" && destinations.data && destinations.data.length > 0) {
+            setValue("destination", destinations.data[0]?.email ?? "");
         }
-    }, [emailDestinations.data, watchAll.destination, setValue]);
+    }, [destinations.data, watchAll.destination, setValue]);
 
     // Persist form draft to session storage on change
     useEffect(() => {
@@ -182,7 +174,7 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                 hostname,
             })}@${domain}`;
 
-            if (!emailRules.data?.find((r) => r.matchers[0]?.value === address)) break;
+            if (!aliases.data?.some((a) => a.address === address)) break;
         }
 
         return address;
@@ -193,7 +185,7 @@ export function AliasCreateDialog({ open, onClose }: Props) {
     }, [
         hostname,
         zones.data,
-        emailRules.data,
+        aliases.data,
         watchAll.domain,
         watchAll.format,
         watchAll.customAlias,
@@ -205,8 +197,8 @@ export function AliasCreateDialog({ open, onClose }: Props) {
     ]);
 
     const previewExists = useMemo(
-        () => emailRules.data?.some((r) => r.matchers[0]?.value === aliasPreview) ?? false,
-        [aliasPreview, emailRules.data],
+        () => aliases.data?.some((a) => a.address === aliasPreview) ?? false,
+        [aliasPreview, aliases.data],
     );
 
     // Remembers the current form values as the defaults for the next alias.
@@ -230,33 +222,30 @@ export function AliasCreateDialog({ open, onClose }: Props) {
     }
 
     function onSubmit(values: z.infer<typeof schema>) {
-        const domainInfo = domains.find((d) => d.domain === values.domain);
+        const domainInfo = domains.data?.find((d) => d.domain === values.domain);
         if (!domainInfo || !aliasPreview) {
             toast({ body: t("domain_not_found"), type: "error" });
             return;
         }
 
-        if (emailRules.data?.find((r) => r.matchers[0]?.value === aliasPreview)) {
+        if (aliases.data?.some((a) => a.address === aliasPreview)) {
             toast({ body: t("alias_already_exists"), type: "error" });
             return;
         }
 
-        const rule: Omit<CloudflareEmailRule, "tag"> = {
-            actions: [{ type: "forward", value: [values.destination] }],
-            matchers: [{ field: "to", type: "literal", value: aliasPreview }],
-            enabled: true,
-            name: `${EMAIL_RULE_NAME_PREFIX}${values.description}`,
-            priority: Math.round(Date.now() / 1000),
-        };
-
-        createEmailRule.mutate(
-            { zoneId: domainInfo.zoneId, rule },
+        createAlias.mutate(
             {
-                onSuccess: (data) => {
+                zoneId: domainInfo.zoneId,
+                address: aliasPreview,
+                destination: values.destination,
+                description: values.description,
+            },
+            {
+                onSuccess: (alias) => {
                     persistSettings();
                     setCreateFormDraft(null);
-                    if (copyAlias && data) {
-                        navigator.clipboard.writeText(data.matchers[0]?.value ?? "");
+                    if (copyAlias) {
+                        navigator.clipboard.writeText(alias.address);
                         toast({ body: t("created_and_copied") });
                     } else {
                         toast({ body: t("created_success") });
@@ -270,9 +259,9 @@ export function AliasCreateDialog({ open, onClose }: Props) {
         );
     }
 
-    const domainOptions = domains.map((d) => ({ value: d.domain, label: d.domain }));
+    const domainOptions = domains.data?.map((d) => ({ value: d.domain, label: d.domain })) ?? [];
     const destinationOptions =
-        emailDestinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
+        destinations.data?.map((d) => ({ value: d.email, label: d.email })) ?? [];
 
     const formatOptions = [
         { value: "characters", label: t("format_characters") },
@@ -327,7 +316,7 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                                     variant="primary"
                                     label={tc("create")}
                                     width="100%"
-                                    isLoading={createEmailRule.isPending}
+                                    isLoading={createAlias.isPending}
                                     isDisabled={previewExists || !aliasPreview || !isOnline}
                                     tooltip={!isOnline ? tc("offline") : undefined}
                                 />

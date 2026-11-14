@@ -17,7 +17,6 @@ export { ImportWizard } from "./components/import";
 
 // API
 export { CloudflareApiClient } from "./api/cloudflare-client";
-export { useCloudflare } from "./api/use-cloudflare";
 export { CloudflareConfigProvider, useCloudflareConfig } from "./api/config-context";
 export type {
     CloudflareBaseResponse,
@@ -27,6 +26,20 @@ export type {
     CloudflareEmailRoutingStatus,
     CloudflareVerifyToken,
 } from "./api/cloudflare-types";
+
+// Backend
+export { CloudflareBackend, queryKeys, useBackend, useMailflare } from "./backend";
+export type {
+    Alias,
+    AliasBackend,
+    AliasChanges,
+    AliasDomain,
+    BackendKind,
+    Destination,
+    NewAlias,
+    Zone,
+    ZoneStatus,
+} from "./backend";
 
 // Import
 export { AddyClient, SimpleLoginClient, useImport } from "./api/import";
@@ -69,7 +82,7 @@ export {
 } from "./storage";
 
 // Utils
-export { Alias, generateAliasAddress, type GenerateAliasOptions } from "./utils/alias";
+export { generateAliasAddress, type GenerateAliasOptions } from "./utils/alias";
 export { randomString } from "./utils/random-string";
 export { sort } from "./utils/sort";
 

@@ -2,10 +2,9 @@ import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { useToast } from "@astryxdesign/core/Toast";
 import { useTranslations } from "use-intl";
 
-import { useCloudflareConfig } from "../api/config-context";
-import { useCloudflare } from "../api/use-cloudflare";
+import type { Alias } from "../backend/types";
+import { useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
-import type { Alias } from "../utils/alias";
 
 type Props = {
     open: boolean;
@@ -17,8 +16,7 @@ export function AliasDeleteDialog({ open, onClose, alias }: Props) {
     const t = useTranslations("alias_delete");
     const tc = useTranslations("common");
     const toast = useToast();
-    const { apiBaseUrl } = useCloudflareConfig();
-    const { selectedZoneId, deleteEmailRule } = useCloudflare(apiBaseUrl);
+    const { deleteAlias } = useMailflare();
     const { isOnline } = useOnlineStatus();
 
     function handleDelete() {
@@ -28,18 +26,15 @@ export function AliasDeleteDialog({ open, onClose, alias }: Props) {
             return;
         }
 
-        deleteEmailRule.mutate(
-            { rule: alias.toEmailRule(), zoneId: selectedZoneId },
-            {
-                onSuccess: () => {
-                    toast({ body: t("success") });
-                    onClose();
-                },
-                onError: (error) => {
-                    toast({ body: t("error", { error: String(error) }), type: "error" });
-                },
+        deleteAlias.mutate(alias, {
+            onSuccess: () => {
+                toast({ body: t("success") });
+                onClose();
             },
-        );
+            onError: (error) => {
+                toast({ body: t("error", { error: String(error) }), type: "error" });
+            },
+        });
     }
 
     return (
@@ -51,7 +46,7 @@ export function AliasDeleteDialog({ open, onClose, alias }: Props) {
             actionLabel={tc("delete")}
             cancelLabel={tc("no")}
             onAction={handleDelete}
-            isActionLoading={deleteEmailRule.isPending}
+            isActionLoading={deleteAlias.isPending}
         />
     );
 }

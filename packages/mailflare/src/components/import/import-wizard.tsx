@@ -16,11 +16,9 @@ import { useCallback, useState } from "react";
 import { TbArrowLeft, TbArrowRight, TbX } from "react-icons/tb";
 import { useTranslations } from "use-intl";
 
-import { useCloudflareConfig } from "../../api/config-context";
 import type { ImportedAlias, ImportResult, ImportService } from "../../api/import";
 import { useImport } from "../../api/import";
-import { useCloudflare } from "../../api/use-cloudflare";
-import { useAuthStore } from "../../stores/auth-store";
+import { useMailflare } from "../../backend/use-mailflare";
 
 type Step = "service" | "preview" | "target" | "progress" | "summary";
 
@@ -35,9 +33,7 @@ const STEP_INDEX: Record<Step, number> = {
 export function ImportWizard() {
     const t = useTranslations("import");
     const tc = useTranslations("common");
-    const { apiBaseUrl } = useCloudflareConfig();
-    const { zones, emailDestinations } = useCloudflare(apiBaseUrl);
-    const apiToken = useAuthStore((s) => s.apiToken);
+    const { backend, zones, destinations } = useMailflare();
     const { progress, fetchAliases, verifyServiceToken, importAliases, abort, reset } = useImport();
 
     const [step, setStep] = useState<Step>("service");
@@ -104,7 +100,7 @@ export function ImportWizard() {
     }, [matchingAliases, allMatchingSelected]);
 
     const handleImport = useCallback(async () => {
-        if (!apiToken || !targetDestination) return;
+        if (!backend || !targetDestination) return;
         setStep("progress");
         const toImport = aliases.filter((a) => selectedEmails.has(a.email));
         const domainToZoneId: Record<string, string> = {};
@@ -113,22 +109,13 @@ export function ImportWizard() {
         }
         const importResult = await importAliases(
             toImport,
-            apiToken,
+            backend,
             domainToZoneId,
             targetDestination,
-            apiBaseUrl,
         );
         setResult(importResult);
         setStep("summary");
-    }, [
-        apiToken,
-        targetDestination,
-        aliases,
-        selectedEmails,
-        zones.data,
-        importAliases,
-        apiBaseUrl,
-    ]);
+    }, [backend, targetDestination, aliases, selectedEmails, zones.data, importAliases]);
 
     const handleStartOver = useCallback(() => {
         reset();
@@ -281,7 +268,7 @@ export function ImportWizard() {
                         onChange={setTargetDestination}
                         placeholder={t("destination_placeholder")}
                         options={
-                            emailDestinations.data?.map((d) => ({
+                            destinations.data?.map((d) => ({
                                 value: d.email,
                                 label: d.email,
                             })) ?? []
