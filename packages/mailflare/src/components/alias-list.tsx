@@ -1,4 +1,5 @@
 import { Banner } from "@astryxdesign/core/Banner";
+import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Link } from "@astryxdesign/core/Link";
@@ -31,12 +32,14 @@ import { AliasCard } from "./alias-card";
 import { AliasCreateDialog } from "./alias-create-dialog";
 import { AliasDeleteDialog } from "./alias-delete-dialog";
 import { AliasEditDialog } from "./alias-edit-dialog";
+import { ManageDomainsDialog } from "./manage-domains-dialog";
 
 export function AliasList() {
     const t = useTranslations("alias_list");
     const tc = useTranslations("common");
 
-    const { selectedZoneId, setSelectedZoneId, zones, zoneStatus, aliases } = useMailflare();
+    const { selectedZoneId, setSelectedZoneId, zones, zoneStatus, aliases, canManageDomains } =
+        useMailflare();
 
     const ruleFilter = useSettingsStore((s) => s.ruleFilter);
     const { isOnline } = useOnlineStatus();
@@ -51,6 +54,8 @@ export function AliasList() {
     const setEditOpen = useUIStore((s) => s.setEditOpen);
     const deleteOpen = useUIStore((s) => s.deleteOpen);
     const setDeleteOpen = useUIStore((s) => s.setDeleteOpen);
+    const manageDomainsOpen = useUIStore((s) => s.manageDomainsOpen);
+    const setManageDomainsOpen = useUIStore((s) => s.setManageDomainsOpen);
     const selectEnabled = useUIStore((s) => s.selectEnabled);
     const setSelectEnabled = useUIStore((s) => s.setSelectEnabled);
     const searchVisible = useUIStore((s) => s.searchVisible);
@@ -115,6 +120,13 @@ export function AliasList() {
     return (
         <VStack gap={2}>
             <AliasCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+
+            {canManageDomains && (
+                <ManageDomainsDialog
+                    open={manageDomainsOpen}
+                    onClose={() => setManageDomainsOpen(false)}
+                />
+            )}
 
             <AliasEditDialog
                 open={editOpen && !!aliasToEdit && selectedAliases.length === 0}
@@ -277,9 +289,24 @@ export function AliasList() {
                 </HStack>
             )}
 
-            {!zones.isFetching && zones.isSuccess && zones.data.length === 0 && (
-                <Banner status="warning" title={t("no_zones")} />
-            )}
+            {!zones.isFetching &&
+                zones.isSuccess &&
+                zones.data.length === 0 &&
+                (canManageDomains ? (
+                    <Banner
+                        status="info"
+                        title={t("no_worker_domains")}
+                        endContent={
+                            <Button
+                                size="sm"
+                                label={t("add_domain")}
+                                onClick={() => setManageDomainsOpen(true)}
+                            />
+                        }
+                    />
+                ) : (
+                    <Banner status="warning" title={t("no_zones")} />
+                ))}
 
             {zones.isError && (
                 <Banner status="error" title={t("zones_error", { error: String(zones.error) })} />

@@ -18,6 +18,7 @@ import { useMailflare } from "../backend/use-mailflare";
 import { GITHUB_LINK } from "../const";
 import { useAuthStore } from "../stores/auth-store";
 import { type Settings, useSettingsStore } from "../stores/settings-store";
+import { useUIStore } from "../stores/ui-store";
 import { LogoutDialog } from "./logout-dialog";
 
 type SettingsItem = {
@@ -34,7 +35,8 @@ function SettingsList() {
     const tc = useTranslations("common");
     const toast = useToast();
     const { isExtension } = useCloudflareConfig();
-    const { zones, destinations } = useMailflare();
+    const { backend, zones, destinations, canManageDomains } = useMailflare();
+    const setManageDomainsOpen = useUIStore((s) => s.setManageDomainsOpen);
 
     const apiToken = useAuthStore((s) => s.apiToken);
     const settings = useSettingsStore();
@@ -94,7 +96,8 @@ function SettingsList() {
             key: "filter",
             title: t("filter.title"),
             description: t("filter.description"),
-            hide: !apiToken,
+            // Only Cloudflare has rules created outside Mailflare.
+            hide: !apiToken || backend?.kind !== "cloudflare",
             action: toggle("ruleFilter", t("filter.title")),
         },
         {
@@ -110,6 +113,19 @@ function SettingsList() {
             description: t("quick_create.description"),
             hide: !apiToken || !isExtension,
             action: toggle("showCreateButton", t("quick_create.title")),
+        },
+        {
+            key: "manage-domains",
+            title: t("manage_domains.title"),
+            description: t("manage_domains.description"),
+            hide: !canManageDomains,
+            action: (
+                <Button
+                    size="sm"
+                    label={t("manage_domains.action")}
+                    onClick={() => setManageDomainsOpen(true)}
+                />
+            ),
         },
         {
             key: "refresh",

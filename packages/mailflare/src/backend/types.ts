@@ -1,11 +1,16 @@
 // The backend abstraction: everything the UI and the extension need to manage
-// aliases, independent of where they live. Today that is Cloudflare Email
-// Routing rules; the Mailflare Worker will be a second implementation.
+// aliases, independent of where they live: Cloudflare Email Routing rules, or
+// a self-hosted Mailflare Worker.
 //
 // All data types are plain, JSON-serializable objects so they survive the
 // persisted query cache and session storage unchanged.
 
-export type BackendKind = "cloudflare";
+export type BackendKind = "cloudflare" | "worker";
+
+/** What the user logged in with; enough to recreate the backend anywhere. */
+export type Connection =
+    | { kind: "cloudflare"; token: string }
+    | { kind: "worker"; url: string; token: string };
 
 /** A group of domains whose aliases are listed together (a Cloudflare zone). */
 export type Zone = {
@@ -28,6 +33,7 @@ export type ZoneStatus = {
 
 /** A mailbox aliases can forward to. */
 export type Destination = {
+    id: string;
     email: string;
     verified: boolean;
 };
@@ -57,8 +63,20 @@ export type NewAlias = {
 
 export type AliasChanges = Partial<Pick<Alias, "destination" | "description" | "enabled">>;
 
+/**
+ * Domains and destinations the backend stores itself. Cloudflare keeps them in
+ * its dashboard, so only the Worker backend offers this.
+ */
+export interface DomainManagement {
+    addDomain(name: string): Promise<Zone>;
+    removeDomain(zoneId: string): Promise<void>;
+    addDestination(email: string): Promise<Destination>;
+    removeDestination(id: string): Promise<void>;
+}
+
 export interface AliasBackend {
     readonly kind: BackendKind;
+    readonly management?: DomainManagement;
 
     listZones(): Promise<Zone[]>;
     listDomains(): Promise<AliasDomain[]>;

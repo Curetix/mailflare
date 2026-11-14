@@ -39,6 +39,7 @@
         "@astryxdesign/cli": "0.7.11",
         "@astryxdesign/theme-neutral": "0.7.11",
         "@mailflare/config": "workspace:*",
+        "@mailflare/worker": "workspace:*",
         "@types/react": "^19.3.0",
         "@types/react-dom": "^19.3.0",
         "typescript": "catalog:"

@@ -3,13 +3,17 @@
 // would pull in every component, Astryx, and the global stylesheets.
 export { CloudflareApiClient } from "./api/cloudflare-client";
 export { CloudflareBackend } from "./backend/cloudflare-backend";
+export { createBackend, verifyConnection } from "./backend/create-backend";
+export { WorkerBackend, normalizeWorkerUrl } from "./backend/worker-backend";
 export type {
     Alias,
     AliasBackend,
     AliasChanges,
     AliasDomain,
     BackendKind,
+    Connection,
     Destination,
+    DomainManagement,
     NewAlias,
     Zone,
     ZoneStatus,

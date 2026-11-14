@@ -167,7 +167,11 @@ export class CloudflareBackend implements AliasBackend {
         const destinations = await getAllPages((page) =>
             this.client.getDestinations(accountId, page),
         );
-        return destinations.map((d) => ({ email: d.email, verified: d.verified !== null }));
+        return destinations.map((d) => ({
+            id: d.tag,
+            email: d.email,
+            verified: d.verified !== null,
+        }));
     }
 
     async listAliases(zoneId: string): Promise<Alias[]> {

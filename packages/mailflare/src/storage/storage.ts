@@ -9,5 +9,6 @@ export enum StorageKeys {
     AliasSettings = "alias-settings",
     ZoneId = "zone-id",
     ApiToken = "api-token",
+    WorkerUrl = "worker-url",
     QueryCache = "query-cache",
 }

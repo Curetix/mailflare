@@ -1,18 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCloudflareConfig } from "../api/config-context";
-import { useAuthStore } from "../stores/auth-store";
-import { CloudflareBackend } from "./cloudflare-backend";
-import type { Alias, AliasBackend, AliasChanges, NewAlias } from "./types";
+import { getConnection, useAuthStore } from "../stores/auth-store";
+import { createBackend } from "./create-backend";
+import type { Alias, AliasBackend, AliasChanges, Connection, NewAlias } from "./types";
 
-// One instance per credential set, shared by every component (and kept across
+// One instance per connection, shared by every component (and kept across
 // re-renders) so per-instance caches like the account ID are reused.
 let cached: { key: string; backend: AliasBackend } | null = null;
 
-function getBackend(apiToken: string, apiBaseUrl?: string): AliasBackend {
-    const key = `cloudflare\n${apiBaseUrl ?? ""}\n${apiToken}`;
+function getBackend(connection: Connection, cloudflareApiBaseUrl?: string): AliasBackend {
+    const key = JSON.stringify([connection, cloudflareApiBaseUrl ?? null]);
     if (cached?.key !== key) {
-        cached = { key, backend: new CloudflareBackend(apiToken, apiBaseUrl) };
+        cached = { key, backend: createBackend(connection, cloudflareApiBaseUrl) };
     }
     return cached.backend;
 }
@@ -20,8 +20,10 @@ function getBackend(apiToken: string, apiBaseUrl?: string): AliasBackend {
 /** The active backend, or null while logged out. */
 export function useBackend(): AliasBackend | null {
     const apiToken = useAuthStore((s) => s.apiToken);
+    const workerUrl = useAuthStore((s) => s.workerUrl);
     const { apiBaseUrl } = useCloudflareConfig();
-    return apiToken ? getBackend(apiToken, apiBaseUrl) : null;
+    const connection = getConnection({ apiToken, workerUrl });
+    return connection ? getBackend(connection, apiBaseUrl) : null;
 }
 
 export const queryKeys = {
@@ -121,8 +123,46 @@ export function useMailflare() {
         onSuccess: invalidateAliases,
     });
 
+    // Domain and destination management (Worker backend only).
+    const invalidateSetup = () =>
+        Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.zones() }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.domains() }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.destinations() }),
+        ]);
+    const management = () => {
+        const manager = requireBackend(backend).management;
+        if (!manager) throw new Error("This backend manages domains elsewhere");
+        return manager;
+    };
+
+    const addDomain = useMutation({
+        mutationFn: (name: string) => management().addDomain(name),
+        onSuccess: invalidateSetup,
+    });
+    const removeDomain = useMutation({
+        mutationFn: (zoneId: string) => management().removeDomain(zoneId),
+        onSuccess: async (_, zoneId) => {
+            if (selectedZoneId === zoneId) setSelectedZoneId(null);
+            await invalidateSetup();
+        },
+    });
+    const addDestination = useMutation({
+        mutationFn: (email: string) => management().addDestination(email),
+        onSuccess: invalidateSetup,
+    });
+    const removeDestination = useMutation({
+        mutationFn: (id: string) => management().removeDestination(id),
+        onSuccess: invalidateSetup,
+    });
+
     return {
         backend,
+        canManageDomains: !!backend?.management,
+        addDomain,
+        removeDomain,
+        addDestination,
+        removeDestination,
         selectedZoneId,
         setSelectedZoneId,
         zones,
