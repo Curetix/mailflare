@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const id = () =>
     text("id")
@@ -41,7 +41,27 @@ export const aliases = sqliteTable(
         createdAt: createdAt(),
         forwardedCount: integer("forwarded_count").notNull().default(0),
         blockedCount: integer("blocked_count").notNull().default(0),
+        /** Messages sent from the alias through reverse addresses. */
+        sentCount: integer("sent_count").notNull().default(0),
         lastEmailAt: integer("last_email_at", { mode: "timestamp" }),
     },
     (t) => [index("aliases_domain_created").on(t.domainId, t.createdAt)],
+);
+
+/**
+ * Short keys for reverse addresses whose readable form (alias+local=domain)
+ * would exceed the 64-character local-part limit.
+ */
+export const reverseContacts = sqliteTable(
+    "reverse_contacts",
+    {
+        /** The key in alias+=<key>@domain. */
+        key: text("key").primaryKey(),
+        aliasId: text("alias_id")
+            .notNull()
+            .references(() => aliases.id, { onDelete: "cascade" }),
+        email: text("email").notNull(),
+        createdAt: createdAt(),
+    },
+    (t) => [uniqueIndex("reverse_contacts_alias_email").on(t.aliasId, t.email)],
 );

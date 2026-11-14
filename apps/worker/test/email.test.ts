@@ -9,30 +9,61 @@ type Alias = {
     id: string;
     forwardedCount: number;
     blockedCount: number;
+    sentCount: number;
     lastEmailAt: number | null;
 };
 
+const OWNER = "me@inbox.test";
+
+/** Cloudflare's verdict, as the topmost Authentication-Results header. */
+const cloudflarePass = (domain: string) =>
+    `Authentication-Results: mx.cloudflare.net; dkim=pass header.d=${domain}; dmarc=pass header.from=${domain}; spf=pass smtp.mailfrom=${domain}`;
+
+function rawMessage(headers: string[], body = "Hello") {
+    return [...headers, "Subject: Hi", "Message-ID: <1@test>", "", body].join("\r\n");
+}
+
 /** A stand-in for Cloudflare's incoming message, recording what the Worker does with it. */
-function incoming(to: string) {
+function incoming(options: { to: string; from: string; headers?: string[] }) {
+    // Cloudflare's own headers come first, as the receiving server prepends them.
+    const raw = rawMessage([
+        ...(options.headers ?? []),
+        `From: ${options.from}`,
+        `To: ${options.to}`,
+    ]);
     return {
-        from: "sender@elsewhere.test",
-        to,
-        headers: new Headers({ Subject: "Hello" }),
-        raw: new ReadableStream(),
-        rawSize: 0,
+        from: options.from,
+        to: options.to,
+        headers: new Headers(),
+        raw: new Response(raw).body!,
+        rawSize: raw.length,
         canBeForwarded: true,
         setReject: vi.fn(),
-        forward: vi.fn(async () => ({ messageId: "test" })),
+        forward: vi.fn(async () => ({ messageId: "forwarded" })),
         reply: vi.fn(),
     } satisfies ForwardableEmailMessage;
 }
 
-async function receive(to: string) {
-    const message = incoming(to);
+type Sent = { from: string; to: string };
+
+/** env with a recording EMAIL binding (or a failing one, or none). */
+function testEnv(mode: "ok" | "fail" | "missing" = "ok") {
+    const sent: Sent[] = [];
+    const send = vi.fn(async (message: EmailMessage) => {
+        if (mode === "fail") throw Object.assign(new Error("boom"), { code: "E_DELIVERY_FAILED" });
+        sent.push({ from: message.from, to: message.to });
+        return { messageId: "sent" };
+    });
+    const EMAIL = mode === "missing" ? undefined : ({ send } as unknown as SendEmail);
+    return { env: { ...env, EMAIL }, sent };
+}
+
+async function receive(message: ReturnType<typeof incoming>, mode?: "ok" | "fail" | "missing") {
+    const test = testEnv(mode);
     const ctx = createExecutionContext();
-    await handleEmail(message, env, ctx);
+    await handleEmail(message, test.env, ctx);
     await waitOnExecutionContext(ctx);
-    return message;
+    return { message, sent: test.sent };
 }
 
 async function getAlias(id: string) {
@@ -40,52 +71,154 @@ async function getAlias(id: string) {
     return body.find((a) => a.id === id)!;
 }
 
-describe("email handler", () => {
-    it("forwards mail for an alias to its destination, tagged with the alias", async () => {
-        const alias = await seedAlias("shop@forward.test", "owner@inbox.test");
+async function reverseKeyFor(email: string) {
+    const row = await env.DB.prepare("SELECT key FROM reverse_contacts WHERE email = ?")
+        .bind(email)
+        .first<{ key: string }>();
+    return row?.key ?? null;
+}
 
-        const message = await receive("shop@forward.test");
-
+describe("incoming mail", () => {
+    it("re-sends mail to the destination, from the alias", async () => {
+        const alias = await seedAlias("shop@in.test", OWNER);
+        const { message, sent } = await receive(
+            incoming({ to: "shop@in.test", from: "bob@elsewhere.test" }),
+        );
         expect(message.setReject).not.toHaveBeenCalled();
-        expect(message.forward).toHaveBeenCalledOnce();
-        const [recipient, headers] = message.forward.mock.calls[0] as unknown as [string, Headers];
-        expect(recipient).toBe("owner@inbox.test");
-        expect(headers.get(ALIAS_HEADER)).toBe("shop@forward.test");
-
+        expect(message.forward).not.toHaveBeenCalled();
+        expect(sent).toEqual([{ from: "shop@in.test", to: OWNER }]);
         const stored = await getAlias(alias.id);
         expect(stored.forwardedCount).toBe(1);
         expect(stored.lastEmailAt).not.toBeNull();
     });
 
-    it("matches recipients case-insensitively", async () => {
-        await seedAlias("news@case.test");
-        const message = await receive("News@CASE.test");
-        expect(message.forward).toHaveBeenCalledOnce();
+    it("forwards unchanged when re-sending fails or isn't configured", async () => {
+        await seedAlias("fallback@in.test", OWNER);
+        for (const mode of ["fail", "missing"] as const) {
+            const { message, sent } = await receive(
+                incoming({ to: "fallback@in.test", from: "bob@elsewhere.test" }),
+                mode,
+            );
+            expect(sent).toEqual([]);
+            expect(message.forward).toHaveBeenCalledOnce();
+            const [recipient, headers] = message.forward.mock.calls[0] as unknown as [
+                string,
+                Headers,
+            ];
+            expect(recipient).toBe(OWNER);
+            expect(headers.get(ALIAS_HEADER)).toBe("fallback@in.test");
+        }
     });
 
-    it("delivers subaddresses (alias+tag) to the alias", async () => {
-        await seedAlias("list@plus.test");
-        const message = await receive("list+promo@plus.test");
-        expect(message.forward).toHaveBeenCalledOnce();
+    it("matches recipients case-insensitively and delivers subaddresses", async () => {
+        await seedAlias("news@case.test", OWNER);
+        for (const to of ["News@CASE.test", "news+promo@case.test"]) {
+            const { sent } = await receive(incoming({ to, from: "bob@elsewhere.test" }));
+            expect(sent).toEqual([{ from: "news@case.test", to: OWNER }]);
+        }
     });
 
-    it("rejects unknown addresses", async () => {
-        await seedAlias("known@unknown.test");
-        const message = await receive("nobody@unknown.test");
-        expect(message.forward).not.toHaveBeenCalled();
-        expect(message.setReject).toHaveBeenCalledWith(REJECT_REASON);
-    });
-
-    it("rejects mail for disabled aliases the same way, and counts it as blocked", async () => {
-        const alias = await seedAlias("paused@disabled.test");
+    it("rejects unknown and disabled aliases alike, counting blocked mail", async () => {
+        const alias = await seedAlias("paused@reject.test", OWNER);
         await api("PATCH", `/api/v1/aliases/${alias.id}`, { enabled: false });
 
-        const message = await receive("paused@disabled.test");
+        for (const to of ["nobody@reject.test", "paused@reject.test"]) {
+            const { message, sent } = await receive(incoming({ to, from: "bob@elsewhere.test" }));
+            expect(sent).toEqual([]);
+            expect(message.forward).not.toHaveBeenCalled();
+            expect(message.setReject).toHaveBeenCalledWith(REJECT_REASON);
+        }
+        expect((await getAlias(alias.id)).blockedCount).toBe(1);
+    });
 
-        expect(message.forward).not.toHaveBeenCalled();
-        expect(message.setReject).toHaveBeenCalledWith(REJECT_REASON);
-        const stored = await getAlias(alias.id);
-        expect(stored.blockedCount).toBe(1);
-        expect(stored.forwardedCount).toBe(0);
+    it("stores a short reverse key for contacts whose readable reverse address is too long", async () => {
+        await seedAlias("keyed@long.test", OWNER);
+        const contact = `${"a".repeat(50)}@elsewhere.test`;
+        await receive(incoming({ to: "keyed@long.test", from: contact }));
+        expect(await reverseKeyFor(contact)).toMatch(/^[a-z0-9]{10}$/);
+        // The same contact keeps its key.
+        const key = await reverseKeyFor(contact);
+        await receive(incoming({ to: "keyed@long.test", from: contact }));
+        expect(await reverseKeyFor(contact)).toBe(key);
+    });
+});
+
+describe("sending from an alias", () => {
+    it("sends the owner's message to the contact behind a reverse address", async () => {
+        const alias = await seedAlias("reply@out.test", OWNER);
+        const { message, sent } = await receive(
+            incoming({
+                to: "reply+Bob.Smith=Shop.test@out.test",
+                from: OWNER,
+                headers: [cloudflarePass("inbox.test")],
+            }),
+        );
+        expect(message.setReject).not.toHaveBeenCalled();
+        // The contact's local part keeps its case; the domain is lowercased.
+        expect(sent).toEqual([{ from: "reply@out.test", to: "Bob.Smith@shop.test" }]);
+        expect((await getAlias(alias.id)).sentCount).toBe(1);
+    });
+
+    it("resolves short reverse keys", async () => {
+        await seedAlias("short@out.test", OWNER);
+        const contact = `${"b".repeat(50)}@elsewhere.test`;
+        await receive(incoming({ to: "short@out.test", from: contact }));
+
+        const { sent } = await receive(
+            incoming({
+                to: `short+=${await reverseKeyFor(contact)}@out.test`,
+                from: OWNER,
+                headers: [cloudflarePass("inbox.test")],
+            }),
+        );
+        expect(sent).toEqual([{ from: "short@out.test", to: contact }]);
+    });
+
+    it("refuses mail that claims to be from the owner without Cloudflare's DMARC pass", async () => {
+        await seedAlias("guard@out.test", OWNER);
+        const attempts = [
+            [], // No authentication results at all.
+            ["Authentication-Results: mx.cloudflare.net; dmarc=fail header.from=inbox.test"],
+            // A forged pass below a different topmost result.
+            ["Authentication-Results: other.example; dmarc=none", cloudflarePass("inbox.test")],
+            // A pass for a different domain.
+            [cloudflarePass("evil.test")],
+        ];
+        for (const headers of attempts) {
+            const { message, sent } = await receive(
+                incoming({ to: "guard+victim=target.test@out.test", from: OWNER, headers }),
+            );
+            expect(sent).toEqual([]);
+            expect(message.forward).not.toHaveBeenCalled();
+            expect(message.setReject).toHaveBeenCalledWith(
+                "Could not verify that this message comes from the alias owner",
+            );
+        }
+    });
+
+    it("treats anyone else writing to a reverse address as mail for the alias", async () => {
+        await seedAlias("stranger@out.test", OWNER);
+        const { sent } = await receive(
+            incoming({
+                to: "stranger+victim=target.test@out.test",
+                from: "attacker@evil.test",
+                headers: [cloudflarePass("evil.test")],
+            }),
+        );
+        expect(sent).toEqual([{ from: "stranger@out.test", to: OWNER }]);
+    });
+
+    it("refuses to send from a disabled alias", async () => {
+        const alias = await seedAlias("off@out.test", OWNER);
+        await api("PATCH", `/api/v1/aliases/${alias.id}`, { enabled: false });
+        const { message, sent } = await receive(
+            incoming({
+                to: "off+bob=shop.test@out.test",
+                from: OWNER,
+                headers: [cloudflarePass("inbox.test")],
+            }),
+        );
+        expect(sent).toEqual([]);
+        expect(message.setReject).toHaveBeenCalledWith("This alias is disabled");
     });
 });
