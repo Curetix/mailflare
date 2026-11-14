@@ -39,6 +39,8 @@ export type Alias = {
     createdAt: number;
     forwardedCount: number;
     blockedCount: number;
+    /** Messages sent from the alias through reverse addresses. */
+    sentCount: number;
     lastEmailAt: number | null;
 };
 

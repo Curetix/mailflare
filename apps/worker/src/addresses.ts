@@ -19,16 +19,3 @@ export function splitAddress(address: string): { local: string; domain: string }
     if (at <= 0 || at === address.length - 1) return null;
     return { local: address.slice(0, at), domain: address.slice(at + 1) };
 }
-
-/**
- * Addresses that may hold mail for a recipient, most specific first:
- * `alias+tag@example.com` is delivered to `alias@example.com` (subaddressing).
- */
-export function lookupCandidates(recipient: string): string[] {
-    const address = normalizeAddress(recipient);
-    const parts = splitAddress(address);
-    if (!parts) return [];
-    const plus = parts.local.indexOf("+");
-    if (plus <= 0) return [address];
-    return [address, `${parts.local.slice(0, plus)}@${parts.domain}`];
-}

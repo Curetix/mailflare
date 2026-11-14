@@ -76,6 +76,7 @@ const toAlias = (
     createdAt: seconds(a.createdAt),
     forwardedCount: a.forwardedCount,
     blockedCount: a.blockedCount,
+    sentCount: a.sentCount,
     lastEmailAt: a.lastEmailAt ? seconds(a.lastEmailAt) : null,
 });
 
