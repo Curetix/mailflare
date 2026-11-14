@@ -2,6 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 
+import { createDb, schema } from "../src/db";
 import { ALIAS_HEADER, handleEmail, REJECT_REASON } from "../src/email";
 import { api, seedAlias } from "./helpers";
 
@@ -220,5 +221,97 @@ describe("sending from an alias", () => {
         );
         expect(sent).toEqual([]);
         expect(message.setReject).toHaveBeenCalledWith("This alias is disabled");
+    });
+});
+
+/** An alias owned by an account (role "user" unless given), straight in the database. */
+async function seedAccountAlias(address: string, owner: string, role = "user") {
+    const db = createDb(env.DB);
+    const domainName = address.split("@")[1]!;
+    const [user] = await db
+        .insert(schema.user)
+        .values({ id: crypto.randomUUID(), name: owner, email: owner, emailVerified: true, role })
+        .returning();
+    const [domain] = await db
+        .insert(schema.domains)
+        .values({ name: domainName, shared: true })
+        .onConflictDoUpdate({ target: schema.domains.name, set: { shared: true } })
+        .returning();
+    const [destination] = await db
+        .insert(schema.destinations)
+        .values({ userId: user!.id, email: owner, verifiedAt: new Date() })
+        .returning();
+    const [alias] = await db
+        .insert(schema.aliases)
+        .values({ address, userId: user!.id, domainId: domain!.id, destinationId: destination!.id })
+        .returning();
+    return { alias: alias!, user: user!, destination: destination! };
+}
+
+describe("aliases of accounts", () => {
+    const fromOwner = (owner: string, to: string) =>
+        incoming({ to, from: owner, headers: [cloudflarePass(owner.split("@")[1]!)] });
+
+    it("only send to people who mailed the alias", async () => {
+        const owner = "ann@acct.test";
+        await seedAccountAlias("ann@shared.test", owner);
+
+        const cold = await receive(fromOwner(owner, "ann+stranger=target.test@shared.test"));
+        expect(cold.sent).toEqual([]);
+        expect(cold.message.setReject).toHaveBeenCalledWith(
+            "You can only reply to people who have emailed this alias",
+        );
+
+        // Once they have written (Cc'd people count too), replies go out.
+        await receive(
+            incoming({
+                to: "ann@shared.test",
+                from: "Stranger@Target.test",
+                headers: ["Cc: friend@target.test"],
+            }),
+        );
+        for (const contact of ["stranger=target.test", "friend=target.test"]) {
+            const reply = await receive(fromOwner(owner, `ann+${contact}@shared.test`));
+            expect(reply.message.setReject).not.toHaveBeenCalled();
+            expect(reply.sent).toHaveLength(1);
+        }
+    });
+
+    it("stop at the daily sending limit", async () => {
+        const owner = "ben@acct.test";
+        await seedAccountAlias("ben@shared.test", owner);
+        await receive(incoming({ to: "ben@shared.test", from: "pal@target.test" }));
+        const results = [];
+        for (let i = 0; i < 3; i += 1) {
+            results.push(await receive(fromOwner(owner, "ben+pal=target.test@shared.test")));
+        }
+        // MAX_SENDS_PER_DAY is 2 in the tests.
+        expect(results.map((r) => r.sent.length)).toEqual([1, 1, 0]);
+        expect(results[2]!.message.setReject).toHaveBeenCalledWith(
+            "You have reached today's sending limit",
+        );
+    });
+
+    it("of admins have no contact restriction", async () => {
+        const owner = "chief@acct.test";
+        await seedAccountAlias("chief@shared.test", owner, "admin");
+        const { sent } = await receive(fromOwner(owner, "chief+anyone=target.test@shared.test"));
+        expect(sent).toEqual([{ from: "chief@shared.test", to: "anyone@target.test" }]);
+    });
+
+    it("receive nothing once the account is suspended or the inbox unconfirmed", async () => {
+        const banned = await seedAccountAlias("gone@shared.test", "gone@acct.test");
+        await env.DB.prepare("UPDATE user SET banned = 1 WHERE id = ?").bind(banned.user.id).run();
+        const unconfirmed = await seedAccountAlias("new@shared.test", "new@acct.test");
+        await env.DB.prepare("UPDATE destinations SET verified_at = NULL WHERE id = ?")
+            .bind(unconfirmed.destination.id)
+            .run();
+
+        for (const to of ["gone@shared.test", "new@shared.test"]) {
+            const { message, sent } = await receive(incoming({ to, from: "bob@elsewhere.test" }));
+            expect(sent).toEqual([]);
+            expect(message.forward).not.toHaveBeenCalled();
+            expect(message.setReject).toHaveBeenCalledWith(REJECT_REASON);
+        }
     });
 });

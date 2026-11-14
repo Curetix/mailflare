@@ -7,7 +7,11 @@ describe("auth", () => {
     it("serves /api/info without a token", async () => {
         const { status, body } = await api<Api.ApiInfo>("GET", "/api/info", undefined, null);
         expect(status).toBe(200);
-        expect(body).toEqual({ name: "mailflare", apiVersion: 1 });
+        expect(body).toEqual({
+            name: "mailflare",
+            apiVersion: 1,
+            accounts: { enabled: true, publicSignups: true },
+        });
     });
 
     it("rejects missing and wrong tokens", async () => {
