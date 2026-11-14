@@ -47,6 +47,7 @@ mailflare/
 ├── apps/
 │   ├── extension/   # Browser extension (WXT)
 │   ├── web/         # Web app / PWA (Vite)
+│   ├── worker/      # Mailflare Worker: email routing + alias API (Hono, D1, Drizzle)
 │   └── landing/     # Landing page (Vinext, static export)
 ├── packages/
 │   ├── mailflare/   # @mailflare/core: shared UI, API client, stores
@@ -60,4 +61,5 @@ mailflare/
 - `pnpm run build`: Build all applications
 - `pnpm run dev:web`: Start only the web application
 - `pnpm run check-types`: Check TypeScript types across all apps
+- `pnpm run test`: Run the tests (currently the Worker's)
 - `pnpm run check`: Run Oxlint and Oxfmt
