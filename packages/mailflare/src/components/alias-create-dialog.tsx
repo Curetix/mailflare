@@ -209,7 +209,10 @@ export function AliasCreateDialog({ open, onClose }: Props) {
         [aliasPreview, emailRules.data],
     );
 
-    function saveSettings() {
+    // Remembers the current form values as the defaults for the next alias.
+    // Runs silently after every successful create; the "Save as Default"
+    // button (saveSettings) additionally confirms with a toast.
+    function persistSettings() {
         updateAliasSettings({
             domain: watchAll.domain,
             format: watchAll.format,
@@ -219,6 +222,10 @@ export function AliasCreateDialog({ open, onClose }: Props) {
             prefixFormat: watchAll.prefixFormat,
             destination: watchAll.destination,
         });
+    }
+
+    function saveSettings() {
+        persistSettings();
         toast({ body: tc("success"), uniqueID: "alias-settings-saved" });
     }
 
@@ -246,7 +253,7 @@ export function AliasCreateDialog({ open, onClose }: Props) {
             { zoneId: domainInfo.zoneId, rule },
             {
                 onSuccess: (data) => {
-                    saveSettings();
+                    persistSettings();
                     setCreateFormDraft(null);
                     if (copyAlias && data) {
                         navigator.clipboard.writeText(data.matchers[0]?.value ?? "");
