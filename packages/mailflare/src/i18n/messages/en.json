@@ -49,7 +49,8 @@
         "no_worker_domains": "Add the domains your Worker receives mail for to start creating aliases.",
         "add_domain": "Add domain",
         "no_shared_domains": "There are no domains to create aliases on yet. Ask the admin of this Worker to share one.",
-        "count": "{count, plural, one {# alias} other {# aliases}}"
+        "count": "{count, plural, one {# alias} other {# aliases}}",
+        "done_select": "Done"
     },
     "alias_create": {
         "title": "Create Alias",
@@ -347,7 +348,31 @@
             "passkeys_empty": "No passkeys yet. Add one to sign in without a password.",
             "passkey_unnamed": "Passkey added {date}",
             "delete_passkey": "Remove passkey",
-            "passkey_removed": "Passkey removed"
+            "passkey_removed": "Passkey removed",
+            "password_title": "Password",
+            "current_password": "Current password",
+            "new_password": "New password",
+            "change_password": "Change password",
+            "password_changed": "Password changed",
+            "no_password": "You sign in with links and passkeys. To use a password too, set one with a link we email you.",
+            "set_password": "Email me a link",
+            "set_password_sent": "Sent a link to {email}",
+            "sessions_title": "Signed-in devices",
+            "sessions_description": "Where your account is signed in, including the extension.",
+            "this_device": "This device",
+            "unknown_device": "Unknown device",
+            "signed_in_at": "Signed in {date}",
+            "sign_out_device": "Sign out",
+            "signed_out_device": "Signed out that device",
+            "sign_out_others": "Sign out everywhere else",
+            "signed_out_others": "Signed out all other devices",
+            "delete_title": "Delete account",
+            "delete_description": "Deletes your account with all its aliases and inboxes. Mail to your aliases will bounce. This can't be undone.",
+            "delete_password": "Password, to confirm",
+            "delete_action": "Delete account",
+            "delete_confirm_title": "Delete your account?",
+            "delete_confirm_description": "Your aliases stop working right away, and this can't be undone.",
+            "deleted": "Your account was deleted"
         }
     },
     "users": {
@@ -373,7 +398,8 @@
         "domains": "Domains",
         "accounts": "Accounts",
         "pages": "Pages",
-        "cloudflare": "Cloudflare Email Routing"
+        "cloudflare": "Cloudflare Email Routing",
+        "tagline": "Email aliases on your own domains"
     },
     "alias_details": {
         "activity": "Activity",

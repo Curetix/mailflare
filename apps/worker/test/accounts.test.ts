@@ -241,6 +241,47 @@ describe("sessions", () => {
     });
 });
 
+describe("self-service", () => {
+    it("lists signed-in devices, naming the extension's session", async () => {
+        const app = await signUp("grace@user.test");
+        await api("POST", "/api/v1/sessions", undefined, app);
+        const response = await request("GET", "/api/auth/list-sessions", undefined, {
+            headers: { Authorization: `Bearer ${app}` },
+        });
+        const sessions = await response.json<{ userAgent: string | null }[]>();
+        // Signing up signs in through the confirmation link, too.
+        expect(sessions.map((s) => s.userAgent)).toContain("Mailflare extension");
+    });
+
+    it("deletes an account with its aliases and inboxes", async () => {
+        await sharedDomain("leave.test");
+        const token = await signUp("heidi@user.test");
+        const alias = await api<Api.Alias>(
+            "POST",
+            "/api/v1/aliases",
+            { address: "heidi@leave.test", destination: "heidi@user.test" },
+            token,
+        );
+        expect(alias.status).toBe(201);
+
+        const deleted = await request(
+            "POST",
+            "/api/auth/delete-user",
+            { password: PASSWORD },
+            { headers: { Authorization: `Bearer ${token}` } },
+        );
+        expect(deleted.ok).toBe(true);
+
+        expect((await api("GET", "/api/v1/me", undefined, token)).status).toBe(401);
+        const left = await env.DB.prepare(
+            "SELECT (SELECT count(*) FROM aliases WHERE address = ?) AS aliases, (SELECT count(*) FROM destinations WHERE email = ?) AS inboxes",
+        )
+            .bind("heidi@leave.test", "heidi@user.test")
+            .first<{ aliases: number; inboxes: number }>();
+        expect(left).toEqual({ aliases: 0, inboxes: 0 });
+    });
+});
+
 describe("admins", () => {
     it("list accounts and can suspend them", async () => {
         const eve = await signUp("eve@user.test");

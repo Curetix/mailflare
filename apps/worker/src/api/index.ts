@@ -228,6 +228,9 @@ v1.get("/me", (c) => {
     });
 });
 
+/** The user agent recorded for sessions handed to other apps. */
+const APP_SESSION_AGENT = "Mailflare extension";
+
 // Sessions: the Worker's app hands other apps (the extension) a session of
 // their own, so signing out of one doesn't sign out the other.
 
@@ -237,7 +240,10 @@ v1.post("/sessions", async (c) => {
         throw new ApiException(400, "not_an_account", "Only accounts can authorize apps");
     }
     const context = await principal.auth.$context;
-    const session = await context.internalAdapter.createSession(principal.user.id);
+    // Named, so the account's list of signed-in devices can tell it apart.
+    const session = await context.internalAdapter.createSession(principal.user.id, false, {
+        userAgent: APP_SESSION_AGENT,
+    });
     return c.json<Api.NewSession>({ token: session.token }, 201);
 });
 

@@ -186,15 +186,82 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
                 selectedAliases={selectedAliases}
             />
 
-            {/* WIDE: the sidebar selects the domain; name it here */}
-            {hideDomainSelector && selectedZone && (
-                <HStack gap={2} align="end">
-                    <Heading level={2}>{selectedZone.name}</Heading>
-                    {aliases.isSuccess && (
-                        <Text type="supporting">
-                            {t("count", { count: aliases.data?.length ?? 0 })}
-                        </Text>
-                    )}
+            {/* WIDE: the sidebar selects the domain; one row with its name and the actions */}
+            {hideDomainSelector && (
+                <HStack gap={3} align="center" justify="between" style={{ flexWrap: "wrap" }}>
+                    <HStack gap={2} align="end">
+                        <Heading level={2}>{selectedZone?.name ?? ""}</Heading>
+                        {aliases.isSuccess && (
+                            <Text type="supporting">
+                                {t("count", { count: aliases.data?.length ?? 0 })}
+                            </Text>
+                        )}
+                    </HStack>
+                    <HStack gap={2} align="center">
+                        <TextInput
+                            type="search"
+                            label={t("search_placeholder")}
+                            isLabelHidden
+                            hasClear
+                            width={260}
+                            placeholder={t("search_placeholder")}
+                            value={aliasSearch}
+                            onChange={setAliasSearch}
+                            isDisabled={!aliases.data || aliases.data.length === 0}
+                        />
+                        {selectEnabled ? (
+                            <>
+                                <Button
+                                    label={tc("edit")}
+                                    icon={<TbEdit />}
+                                    isDisabled={selectedAliases.length === 0}
+                                    onClick={() => setEditOpen(true)}
+                                />
+                                <Button
+                                    variant="destructive"
+                                    label={tc("delete")}
+                                    icon={<TbTrash />}
+                                    isDisabled={selectedAliases.length === 0}
+                                    onClick={() => setDeleteOpen(true)}
+                                />
+                                <Button
+                                    label={t("done_select")}
+                                    onClick={() => {
+                                        clearSelection();
+                                        setSelectEnabled(false);
+                                    }}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <IconButton
+                                    label={t("select")}
+                                    tooltip={t("select")}
+                                    icon={<TbListCheck />}
+                                    isDisabled={filteredAliases.length === 0}
+                                    onClick={() => {
+                                        clearSelection();
+                                        setSelectEnabled(true);
+                                    }}
+                                />
+                                <IconButton
+                                    label={t("refresh")}
+                                    tooltip={t("refresh")}
+                                    icon={<TbRefresh />}
+                                    isLoading={aliases.isFetching}
+                                    isDisabled={!isOnline || noZoneSelected}
+                                    onClick={() => aliases.refetch()}
+                                />
+                                <Button
+                                    variant="primary"
+                                    label={t("create")}
+                                    icon={<TbPlus />}
+                                    isDisabled={!isOnline || noZoneSelected}
+                                    onClick={() => setCreateOpen(true)}
+                                />
+                            </>
+                        )}
+                    </HStack>
                 </HStack>
             )}
 
@@ -213,80 +280,82 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
                 />
             )}
 
-            {/* ACTION BUTTONS */}
-            <HStack gap={1}>
-                <IconButton
-                    size="sm"
-                    label={selectEnabled ? t("stop_select") : t("select")}
-                    tooltip={selectEnabled ? t("stop_select") : t("select")}
-                    icon={selectEnabled ? <TbPlaylistX /> : <TbListCheck />}
-                    isDisabled={
-                        !zones.data ||
-                        (!selectEnabled && filteredAliases.length === 0) ||
-                        selectedZoneId === null
-                    }
-                    onClick={() => {
-                        clearSelection();
-                        setSelectEnabled(!selectEnabled);
-                    }}
-                />
+            {/* ACTION BUTTONS (narrow) */}
+            {!hideDomainSelector && (
+                <HStack gap={1}>
+                    <IconButton
+                        size="sm"
+                        label={selectEnabled ? t("stop_select") : t("select")}
+                        tooltip={selectEnabled ? t("stop_select") : t("select")}
+                        icon={selectEnabled ? <TbPlaylistX /> : <TbListCheck />}
+                        isDisabled={
+                            !zones.data ||
+                            (!selectEnabled && filteredAliases.length === 0) ||
+                            selectedZoneId === null
+                        }
+                        onClick={() => {
+                            clearSelection();
+                            setSelectEnabled(!selectEnabled);
+                        }}
+                    />
 
-                {selectEnabled ? (
-                    <>
-                        <IconButton
-                            size="sm"
-                            label={tc("edit")}
-                            tooltip={tc("edit")}
-                            icon={<TbEdit />}
-                            isDisabled={selectedAliases.length === 0}
-                            onClick={() => setEditOpen(true)}
-                        />
-                        <IconButton
-                            size="sm"
-                            variant="destructive"
-                            label={tc("delete")}
-                            tooltip={tc("delete")}
-                            icon={<TbTrash />}
-                            isDisabled={selectedAliases.length === 0}
-                            onClick={() => setDeleteOpen(true)}
-                        />
-                    </>
-                ) : (
-                    <>
-                        <IconButton
-                            size="sm"
-                            variant="primary"
-                            label={t("create")}
-                            tooltip={t("create")}
-                            icon={<TbPlus />}
-                            isDisabled={!isOnline || noZoneSelected}
-                            onClick={() => setCreateOpen(true)}
-                        />
-                        <IconButton
-                            size="sm"
-                            label={searchVisible ? t("stop_search") : t("search")}
-                            tooltip={searchVisible ? t("stop_search") : t("search")}
-                            icon={searchVisible ? <TbSearchOff /> : <TbSearch />}
-                            isDisabled={!aliases.data || aliases.data.length === 0}
-                            onClick={() => {
-                                setSearchVisible(!searchVisible);
-                                setAliasSearch("");
-                            }}
-                        />
-                        <IconButton
-                            size="sm"
-                            label={t("refresh")}
-                            tooltip={t("refresh")}
-                            icon={<TbRefresh />}
-                            isLoading={aliases.isFetching}
-                            isDisabled={!isOnline || noZoneSelected}
-                            onClick={() => aliases.refetch()}
-                        />
-                    </>
-                )}
-            </HStack>
+                    {selectEnabled ? (
+                        <>
+                            <IconButton
+                                size="sm"
+                                label={tc("edit")}
+                                tooltip={tc("edit")}
+                                icon={<TbEdit />}
+                                isDisabled={selectedAliases.length === 0}
+                                onClick={() => setEditOpen(true)}
+                            />
+                            <IconButton
+                                size="sm"
+                                variant="destructive"
+                                label={tc("delete")}
+                                tooltip={tc("delete")}
+                                icon={<TbTrash />}
+                                isDisabled={selectedAliases.length === 0}
+                                onClick={() => setDeleteOpen(true)}
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <IconButton
+                                size="sm"
+                                variant="primary"
+                                label={t("create")}
+                                tooltip={t("create")}
+                                icon={<TbPlus />}
+                                isDisabled={!isOnline || noZoneSelected}
+                                onClick={() => setCreateOpen(true)}
+                            />
+                            <IconButton
+                                size="sm"
+                                label={searchVisible ? t("stop_search") : t("search")}
+                                tooltip={searchVisible ? t("stop_search") : t("search")}
+                                icon={searchVisible ? <TbSearchOff /> : <TbSearch />}
+                                isDisabled={!aliases.data || aliases.data.length === 0}
+                                onClick={() => {
+                                    setSearchVisible(!searchVisible);
+                                    setAliasSearch("");
+                                }}
+                            />
+                            <IconButton
+                                size="sm"
+                                label={t("refresh")}
+                                tooltip={t("refresh")}
+                                icon={<TbRefresh />}
+                                isLoading={aliases.isFetching}
+                                isDisabled={!isOnline || noZoneSelected}
+                                onClick={() => aliases.refetch()}
+                            />
+                        </>
+                    )}
+                </HStack>
+            )}
 
-            {searchVisible && (
+            {searchVisible && !hideDomainSelector && (
                 <TextInput
                     type="search"
                     label={t("search_placeholder")}
