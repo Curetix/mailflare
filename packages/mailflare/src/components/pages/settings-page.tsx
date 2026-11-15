@@ -1,28 +1,26 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Divider } from "@astryxdesign/core/Divider";
-import { Drawer, DrawerHeader } from "@astryxdesign/core/Drawer";
 import { HStack } from "@astryxdesign/core/HStack";
-import { IconButton } from "@astryxdesign/core/IconButton";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, type ReactNode, useMemo, useState } from "react";
-import { LuExternalLink, LuImport, LuSettings } from "react-icons/lu";
+import { useQueryClient } from "@tanstack/react-query";
+import { Fragment, type ReactNode, useState } from "react";
+import { LuExternalLink, LuImport } from "react-icons/lu";
 import { useTranslations } from "use-intl";
+import { useLocation } from "wouter";
 
-import { createAccountClient, unwrap } from "../account/account-client";
-import { useAccountErrorMessage } from "../account/use-account-error";
-import { useCloudflareConfig } from "../api/config-context";
-import { useMailflare } from "../backend/use-mailflare";
-import { GITHUB_LINK } from "../const";
-import { useAuthStore } from "../stores/auth-store";
-import { type Settings, useSettingsStore } from "../stores/settings-store";
-import { useUIStore } from "../stores/ui-store";
-import { LogoutDialog } from "./logout-dialog";
-import { UsersDialog } from "./users-dialog";
+import { useCloudflareConfig } from "../../api/config-context";
+import { useMailflare } from "../../backend/use-mailflare";
+import { GITHUB_LINK } from "../../const";
+import { useLayout } from "../../hooks/use-layout";
+import { useAuthStore } from "../../stores/auth-store";
+import { type Settings, useSettingsStore } from "../../stores/settings-store";
+import { LogoutDialog } from "../logout-dialog";
+import { PATHS } from "../navigation";
+import { PageBody, PageHeader } from "./page-header";
 
 type SettingsItem = {
     key: string;
@@ -32,35 +30,23 @@ type SettingsItem = {
     hide?: boolean;
 };
 
-function SettingsList({ onLoggedOut }: { onLoggedOut: () => void }) {
+export function SettingsPage() {
     const queryClient = useQueryClient();
     const t = useTranslations("settings");
     const tc = useTranslations("common");
     const toast = useToast();
-    const ta = useTranslations("account");
-    const accountError = useAccountErrorMessage();
     const { isExtension, lockedWorkerUrl } = useCloudflareConfig();
-    const { backend, zones, destinations, canManageDomains, canEditDomains } = useMailflare();
-    const setManageDomainsOpen = useUIStore((s) => s.setManageDomainsOpen);
+    const tn = useTranslations("nav");
+    const { backend, zones, destinations, canEditDomains } = useMailflare();
+    const workerUrl = useAuthStore((s) => s.workerUrl);
+    const { isWide } = useLayout();
+    const [, navigate] = useLocation();
 
     const apiToken = useAuthStore((s) => s.apiToken);
     const settings = useSettingsStore();
     const updateSettings = useSettingsStore((s) => s.updateSettings);
 
     const [logoutOpen, setLogoutOpen] = useState(false);
-    const [usersOpen, setUsersOpen] = useState(false);
-
-    // Passkeys belong to the Worker's domain, so only the app it serves can add them.
-    const accountClient = useMemo(
-        () => (lockedWorkerUrl && apiToken ? createAccountClient(lockedWorkerUrl, apiToken) : null),
-        [lockedWorkerUrl, apiToken],
-    );
-    const account = useQuery({
-        queryKey: ["account-session", lockedWorkerUrl, apiToken],
-        enabled: accountClient !== null,
-        networkMode: "online",
-        queryFn: async () => (await accountClient?.getSession())?.data?.user ?? null,
-    });
 
     function toggle(key: "ruleFilter" | "copyAlias" | "showCreateButton", title: string) {
         return (
@@ -133,47 +119,41 @@ function SettingsList({ onLoggedOut }: { onLoggedOut: () => void }) {
             action: toggle("showCreateButton", t("quick_create.title")),
         },
         {
-            key: "manage-domains",
-            title: t("manage_domains.title"),
-            description: t("manage_domains.description"),
-            hide: !canManageDomains,
+            key: "worker",
+            title: t("worker.title"),
+            description: t("worker.description"),
+            // Outside the Worker's own app, management happens there.
+            hide: !workerUrl || !!lockedWorkerUrl,
             action: (
                 <Button
                     size="sm"
-                    label={t("manage_domains.action")}
-                    onClick={() => setManageDomainsOpen(true)}
+                    variant="ghost"
+                    label={t("worker.action")}
+                    endContent={<LuExternalLink />}
+                    href={workerUrl ?? undefined}
+                    target="_blank"
                 />
             ),
         },
         {
-            key: "passkeys",
-            title: ta("passkeys.title"),
-            description: account.data
-                ? ta("passkeys.description", { email: account.data.email })
-                : undefined,
-            hide: !account.data || !accountClient,
+            key: "admin",
+            title: t("admin.title"),
+            description: t("admin.description"),
+            // The sidebar has these on wide screens.
+            hide: !lockedWorkerUrl || !canEditDomains || isWide,
             action: (
-                <Button
-                    size="sm"
-                    label={ta("passkeys.action")}
-                    clickAction={async () => {
-                        try {
-                            if (accountClient) await unwrap(accountClient.passkey.addPasskey());
-                            toast({ body: ta("passkeys.success") });
-                        } catch (error) {
-                            toast({ body: accountError(error), type: "error" });
-                        }
-                    }}
-                />
-            ),
-        },
-        {
-            key: "accounts",
-            title: t("accounts.title"),
-            description: t("accounts.description"),
-            hide: !canEditDomains,
-            action: (
-                <Button size="sm" label={t("accounts.action")} onClick={() => setUsersOpen(true)} />
+                <HStack gap={1}>
+                    <Button
+                        size="sm"
+                        label={tn("domains")}
+                        onClick={() => navigate(PATHS.adminDomains)}
+                    />
+                    <Button
+                        size="sm"
+                        label={tn("accounts")}
+                        onClick={() => navigate(PATHS.adminAccounts)}
+                    />
+                </HStack>
             ),
         },
         {
@@ -261,55 +241,29 @@ function SettingsList({ onLoggedOut }: { onLoggedOut: () => void }) {
     const visibleItems = settingsItems.filter((item) => !item.hide);
 
     return (
-        <VStack gap={2}>
-            {visibleItems.map((item, index) => (
-                <Fragment key={item.key}>
-                    <HStack justify="between" align="center" gap={3}>
-                        <VStack gap={0.5} style={{ flex: 1, minWidth: 0 }}>
-                            <Text weight="medium">{item.title}</Text>
-                            {item.description && <Text type="supporting">{item.description}</Text>}
-                        </VStack>
-                        {item.action}
-                    </HStack>
-                    {index < visibleItems.length - 1 && <Divider />}
-                </Fragment>
-            ))}
-            <UsersDialog open={usersOpen} onClose={() => setUsersOpen(false)} />
-            <LogoutDialog
-                open={logoutOpen}
-                onClose={() => setLogoutOpen(false)}
-                onLoggedOut={onLoggedOut}
-            />
-        </VStack>
-    );
-}
-
-export function SettingsDrawer() {
-    const [open, setOpen] = useState(false);
-    const t = useTranslations("settings");
-
-    return (
-        <>
-            <IconButton
-                variant="ghost"
-                size="sm"
-                label={t("title")}
-                tooltip={t("title")}
-                icon={<LuSettings />}
-                onClick={() => setOpen(true)}
-            />
-            <Drawer
-                isOpen={open}
-                onOpenChange={setOpen}
-                label={t("title")}
-                width={360}
-                experimental={{ isFullWidthOnMobile: true }}
-            >
-                <DrawerHeader title={t("title")} onOpenChange={setOpen} />
-                <VStack padding={4}>
-                    <SettingsList onLoggedOut={() => setOpen(false)} />
-                </VStack>
-            </Drawer>
-        </>
+        <PageBody>
+            <PageHeader title={t("title")} />
+            <VStack gap={2}>
+                {visibleItems.map((item, index) => (
+                    <Fragment key={item.key}>
+                        <HStack justify="between" align="center" gap={3}>
+                            <VStack gap={0.5} style={{ flex: 1, minWidth: 0 }}>
+                                <Text weight="medium">{item.title}</Text>
+                                {item.description && (
+                                    <Text type="supporting">{item.description}</Text>
+                                )}
+                            </VStack>
+                            {item.action}
+                        </HStack>
+                        {index < visibleItems.length - 1 && <Divider />}
+                    </Fragment>
+                ))}
+                <LogoutDialog
+                    open={logoutOpen}
+                    onClose={() => setLogoutOpen(false)}
+                    onLoggedOut={() => navigate(PATHS.aliases)}
+                />
+            </VStack>
+        </PageBody>
     );
 }

@@ -5,8 +5,8 @@ import { VStack } from "@astryxdesign/core/VStack";
 import type { ReactNode } from "react";
 
 import { OfflineBanner } from "./offline-banner";
-import { SettingsDrawer } from "./settings-drawer";
 
+/** A centered column: sign-in and the pages email links open. */
 export function AppLayout({ children }: { children: ReactNode }) {
     return (
         <VStack height="100%" maxWidth={600} style={{ marginInline: "auto" }}>
@@ -14,7 +14,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <Text type="large" weight="bold">
                     MailFlare
                 </Text>
-                <SettingsDrawer />
             </HStack>
             <Divider />
             <OfflineBanner />

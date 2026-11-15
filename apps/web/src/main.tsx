@@ -11,7 +11,8 @@ import { createRoot } from "react-dom/client";
 const storageAdapter = new WebStorageAdapter();
 const persister = createWebPersister(storageAdapter);
 
-const locale = navigator.language.split("-")[0] || "en";
+// Only English messages exist; format dates and numbers to match them.
+const locale = "en";
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>

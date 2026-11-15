@@ -51,6 +51,16 @@ export type Alias = {
     isExternal: boolean;
     /** Sort key, higher is newer. Mailflare uses the creation time in seconds. */
     order: number;
+    /** Worker: what the alias has handled. */
+    stats?: AliasStats;
+};
+
+export type AliasStats = {
+    forwarded: number;
+    blocked: number;
+    sent: number;
+    /** Unix seconds; null if it never got mail. */
+    lastEmailAt: number | null;
 };
 
 export type NewAlias = {

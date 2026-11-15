@@ -12,7 +12,8 @@ import ReactDOM from "react-dom/client";
 const storageAdapter = new ExtensionStorageAdapter();
 const sessionStorageAdapter = new SessionStorageAdapter();
 const persister = createExtensionPersister(storageAdapter);
-const locale = chrome.i18n?.getUILanguage?.()?.split("-")[0] || "en";
+// Only English messages exist; format dates and numbers to match them.
+const locale = "en";
 
 type ConnectResponse = { success: true; token: string } | { success: false; message: string };
 
