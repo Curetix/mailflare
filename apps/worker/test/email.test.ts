@@ -3,7 +3,13 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDb, schema } from "../src/db";
-import { ALIAS_HEADER, handleEmail, REJECT_REASON } from "../src/email";
+import {
+    ALIAS_HEADER,
+    handleEmail,
+    LOOP_REASON,
+    MAX_ALIAS_HOPS,
+    REJECT_REASON,
+} from "../src/email";
 import { api, seedAlias } from "./helpers";
 
 type Alias = {
@@ -141,6 +147,47 @@ describe("incoming mail", () => {
         const key = await reverseKeyFor(contact);
         await receive(incoming({ to: "keyed@long.test", from: contact }));
         expect(await reverseKeyFor(contact)).toBe(key);
+    });
+});
+
+describe("mail loops", () => {
+    it("refuse mail that already passed through the alias", async () => {
+        const alias = await seedAlias("circle@loop.test", OWNER);
+        const { message, sent } = await receive(
+            incoming({
+                to: "circle@loop.test",
+                from: "circle@loop.test",
+                headers: [
+                    `${ALIAS_HEADER}: other@elsewhere.test`,
+                    `${ALIAS_HEADER}: Circle@loop.test`,
+                ],
+            }),
+        );
+        expect(sent).toEqual([]);
+        expect(message.forward).not.toHaveBeenCalled();
+        expect(message.setReject).toHaveBeenCalledWith(LOOP_REASON);
+        expect((await getAlias(alias.id)).blockedCount).toBe(1);
+    });
+
+    it("let mail pass a few aliases in a row, but not too many", async () => {
+        await seedAlias("chain@loop.test", OWNER);
+        const hops = (n: number) =>
+            Array.from({ length: n }, (_, i) => `${ALIAS_HEADER}: hop${i}@elsewhere.test`);
+
+        const chained = await receive(
+            incoming({ to: "chain@loop.test", from: "bob@elsewhere.test", headers: hops(1) }),
+        );
+        expect(chained.sent).toEqual([{ from: "chain@loop.test", to: OWNER }]);
+
+        const tooLong = await receive(
+            incoming({
+                to: "chain@loop.test",
+                from: "bob@elsewhere.test",
+                headers: hops(MAX_ALIAS_HOPS),
+            }),
+        );
+        expect(tooLong.sent).toEqual([]);
+        expect(tooLong.message.setReject).toHaveBeenCalledWith(LOOP_REASON);
     });
 });
 

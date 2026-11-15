@@ -75,6 +75,20 @@ describe("signing up", () => {
     });
 });
 
+describe("account emails on the Worker's own domains", () => {
+    it("are no destination, so nothing forwards back into the Worker", async () => {
+        await api("POST", "/api/v1/domains", { name: "own.test" });
+        const token = await signUp("me@own.test");
+        const destinations = await api<Api.Destination[]>(
+            "GET",
+            "/api/v1/destinations",
+            undefined,
+            token,
+        );
+        expect(destinations.body).toEqual([]);
+    });
+});
+
 describe("magic links", () => {
     it("sign in, and only mail strangers when sign-ups are open", async () => {
         const closed = { env: { PUBLIC_SIGNUPS: "false" } };
