@@ -20,8 +20,8 @@
         "@mailflare/config": "workspace:*",
         "husky": "^9.1.7",
         "lint-staged": "^17.6.0",
-        "oxfmt": "^0.77.0",
-        "oxlint": "^1.92.0",
+        "oxfmt": "^0.78.0",
+        "oxlint": "^1.93.0",
         "typescript": "catalog:"
     },
     "lint-staged": {
@@ -29,7 +29,7 @@
             "oxfmt --write"
         ]
     },
-    "packageManager": "pnpm@12.18.0",
+    "packageManager": "pnpm@12.21.0",
     "cloudflare": {
         "bindings": {
             "ADMIN_TOKEN": {
