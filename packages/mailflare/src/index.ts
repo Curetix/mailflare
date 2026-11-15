@@ -16,7 +16,11 @@ export { ImportWizard } from "./components/import";
 
 // API
 export { CloudflareApiClient } from "./api/cloudflare-client";
-export { CloudflareConfigProvider, useCloudflareConfig } from "./api/config-context";
+export {
+    CloudflareConfigProvider,
+    useCloudflareConfig,
+    type CloudflareAccess,
+} from "./api/config-context";
 export type {
     CloudflareBaseResponse,
     CloudflareEmailRule,

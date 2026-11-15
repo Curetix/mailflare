@@ -10,6 +10,7 @@ import {
 import { defineBackground } from "wxt/utils/define-background";
 
 import type { ContentScriptAlert } from "../utils/alerts";
+import { migrateStorage } from "../utils/migrate-storage";
 
 type TabMessage =
     | { command: "copyText"; text: string }
@@ -23,6 +24,7 @@ async function sendTabMessage(tabId: number | undefined, message: TabMessage) {
 }
 
 async function generateAliasInBackground(hostname: string): Promise<Alias> {
+    await migrateStorage();
     const storage = await chrome.storage.local.get([
         StorageKeys.ApiToken,
         StorageKeys.WorkerUrl,
@@ -91,6 +93,9 @@ async function connectWorkerAccount(workerUrl: string): Promise<string> {
 }
 
 export default defineBackground(() => {
+    // First start after updating from 1.x (and a no-op afterwards).
+    void migrateStorage();
+
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         if (info.menuItemId !== "mailflare-generate" || !info.pageUrl) return;
 

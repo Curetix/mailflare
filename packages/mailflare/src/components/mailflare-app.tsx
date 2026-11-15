@@ -20,6 +20,7 @@ import {
 } from "./account-pages";
 import { AppFrame } from "./app-frame";
 import { AppLayout } from "./app-layout";
+import { useUpdateNotice } from "./extension-notices";
 import { Login, useConnect } from "./login";
 import { PATHS } from "./navigation";
 import { AccountPage } from "./pages/account-page";
@@ -116,6 +117,7 @@ function AppRoutes() {
     const apiToken = useAuthStore((s) => s.apiToken);
     const [location] = useLocation();
     const { checking } = useWorkerSession(url);
+    useUpdateNotice();
 
     if (url) {
         if (location === "/reset-password") return <LinkPage url={url} Page={ResetPasswordPage} />;

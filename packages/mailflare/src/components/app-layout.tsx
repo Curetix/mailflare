@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
 
 import { useLayout } from "../hooks/use-layout";
+import { CloudflareAccessBanner } from "./extension-notices";
 import { OfflineBanner } from "./offline-banner";
 
 /**
@@ -34,6 +35,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     <Text type="supporting">{t("tagline")}</Text>
                 </VStack>
                 <OfflineBanner />
+                <CloudflareAccessBanner />
                 <Card padding={6} style={{ width: "100%", maxWidth: 440 }}>
                     {children}
                 </Card>
@@ -50,6 +52,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </HStack>
             <Divider />
             <OfflineBanner />
+            <CloudflareAccessBanner />
             <VStack padding={2}>{children}</VStack>
         </VStack>
     );

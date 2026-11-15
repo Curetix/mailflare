@@ -13,6 +13,16 @@ type CloudflareConfig = {
      * `/authorize` page); resolves to a session token. The extension provides it.
      */
     connectWorkerAccount?: (workerUrl: string) => Promise<string>;
+    /** The extension's access to the Cloudflare API, which users can withdraw. */
+    cloudflareAccess?: CloudflareAccess;
+    /** The extension's version, for the notice after an update. */
+    appVersion?: string;
+};
+
+export type CloudflareAccess = {
+    has: () => Promise<boolean>;
+    /** Asks the user; call it right in a click handler. */
+    request: () => Promise<boolean>;
 };
 
 const CloudflareConfigContext = createContext<CloudflareConfig>({

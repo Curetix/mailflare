@@ -4,10 +4,13 @@ import {
     ExtensionStorageAdapter,
     SessionStorageAdapter,
     createExtensionPersister,
+    type CloudflareAccess,
 } from "@mailflare/core";
 import messages from "@mailflare/core/i18n/messages/en.json";
 import React from "react";
 import ReactDOM from "react-dom/client";
+
+import { migrateStorage } from "../../utils/migrate-storage";
 
 const storageAdapter = new ExtensionStorageAdapter();
 const sessionStorageAdapter = new SessionStorageAdapter();
@@ -30,6 +33,16 @@ async function connectWorkerAccount(url: string): Promise<string> {
     return response.token;
 }
 
+// Matches host_permissions in wxt.config.ts.
+const cloudflareApi = { origins: ["https://api.cloudflare.com/*"] };
+const cloudflareAccess: CloudflareAccess = {
+    has: () => chrome.permissions.contains(cloudflareApi),
+    request: () => chrome.permissions.request(cloudflareApi),
+};
+
+// 1.x data has to be converted before the app reads it.
+await migrateStorage();
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
         <MailflareProvider
@@ -39,6 +52,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             messages={messages}
             isExtension={true}
             connectWorkerAccount={connectWorkerAccount}
+            cloudflareAccess={cloudflareAccess}
+            appVersion={chrome.runtime.getManifest().version}
             sessionStorageAdapter={sessionStorageAdapter}
         >
             <MailflareApp />

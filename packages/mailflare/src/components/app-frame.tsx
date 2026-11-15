@@ -15,6 +15,7 @@ import { useCloudflareConfig } from "../api/config-context";
 import { useMailflare } from "../backend/use-mailflare";
 import { useLayout } from "../hooks/use-layout";
 import { useAuthStore } from "../stores/auth-store";
+import { CloudflareAccessBanner } from "./extension-notices";
 import { type NavItem, PATHS, useNavItems } from "./navigation";
 import { OfflineBanner } from "./offline-banner";
 
@@ -143,6 +144,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
                 sideNav={<Sidebar items={items} />}
             >
                 <OfflineBanner />
+                <CloudflareAccessBanner />
                 {children}
             </AppShell>
         );
@@ -159,6 +161,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
                 </Text>
             </HStack>
             <OfflineBanner />
+            <CloudflareAccessBanner />
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
                 <VStack padding={2}>{children}</VStack>
             </div>
