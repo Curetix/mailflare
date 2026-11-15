@@ -5,7 +5,7 @@ import type { Persister } from "@tanstack/react-query-persist-client";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { CloudflareConfigProvider } from "../api/config-context";
+import { type CloudflareAccess, CloudflareConfigProvider } from "../api/config-context";
 import { IntlProvider, type Messages } from "../i18n";
 import { StorageProvider } from "../storage/context";
 import type { StorageAdapter } from "../storage/storage";
@@ -31,6 +31,10 @@ export type MailflareProviderProps = {
     lockedWorkerUrl?: string;
     /** Account sign-in for Workers (see CloudflareConfig). */
     connectWorkerAccount?: (workerUrl: string) => Promise<string>;
+    /** The extension's access to the Cloudflare API (see CloudflareConfig). */
+    cloudflareAccess?: CloudflareAccess;
+    /** The extension's version (see CloudflareConfig). */
+    appVersion?: string;
     sessionStorageAdapter?: StorageAdapter;
 };
 
@@ -56,6 +60,8 @@ export function MailflareProvider({
     isExtension = false,
     lockedWorkerUrl,
     connectWorkerAccount,
+    cloudflareAccess,
+    appVersion,
     sessionStorageAdapter,
 }: MailflareProviderProps) {
     const [hydrated, setHydrated] = useState(false);
@@ -103,7 +109,14 @@ export function MailflareProvider({
             >
                 <IntlProvider locale={locale} messages={messages}>
                     <CloudflareConfigProvider
-                        value={{ apiBaseUrl, isExtension, lockedWorkerUrl, connectWorkerAccount }}
+                        value={{
+                            apiBaseUrl,
+                            isExtension,
+                            lockedWorkerUrl,
+                            connectWorkerAccount,
+                            cloudflareAccess,
+                            appVersion,
+                        }}
                     >
                         <ThemeProvider>{children}</ThemeProvider>
                     </CloudflareConfigProvider>

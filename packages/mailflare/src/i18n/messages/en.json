@@ -410,5 +410,14 @@
         "never": "Never",
         "close": "Close",
         "empty": "Select an alias to see what it handled and to edit it."
+    },
+    "extension": {
+        "updated": "Mailflare was updated to version {version}",
+        "access": {
+            "title": "Mailflare can't reach Cloudflare",
+            "description": "Signing in with a Cloudflare API token needs access to api.cloudflare.com. Mailflare Workers work without it.",
+            "denied": "Access wasn't granted. Allow it here, or in your browser's extension settings.",
+            "allow": "Allow access"
+        }
     }
 }

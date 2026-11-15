@@ -11,4 +11,6 @@ export enum StorageKeys {
     ApiToken = "api-token",
     WorkerUrl = "worker-url",
     QueryCache = "query-cache",
+    /** The extension version that last opened, for the "updated" notice. */
+    Version = "version",
 }
