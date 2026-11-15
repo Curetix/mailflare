@@ -10,6 +10,7 @@ export type {
     AliasBackend,
     AliasChanges,
     AliasDomain,
+    AliasStats,
     BackendKind,
     Connection,
     DomainManagement,

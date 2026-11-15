@@ -36,6 +36,10 @@ type AliasCardProps = {
     onSelect: (value: boolean) => void;
     onEdit: () => void;
     onDelete: () => void;
+    /** Wide screens: clicking the card opens it in the detail pane. */
+    onOpen?: () => void;
+    /** The alias shown in the detail pane. */
+    isOpen?: boolean;
 };
 
 export function AliasCard({
@@ -45,6 +49,8 @@ export function AliasCard({
     onSelect,
     onEdit,
     onDelete,
+    onOpen,
+    isOpen,
 }: AliasCardProps) {
     const t = useTranslations("alias_card");
     const toast = useToast();
@@ -59,9 +65,9 @@ export function AliasCard({
     return (
         <Card
             padding={2}
-            variant={isSelected ? "orange" : "default"}
-            onClick={selectEnabled ? () => onSelect(!isSelected) : undefined}
-            style={selectEnabled ? { cursor: "pointer" } : undefined}
+            variant={isSelected || isOpen ? "orange" : "default"}
+            onClick={selectEnabled ? () => onSelect(!isSelected) : onOpen}
+            style={selectEnabled || onOpen ? { cursor: "pointer" } : undefined}
         >
             <HStack gap={2} align="center">
                 {selectEnabled && (
@@ -94,15 +100,21 @@ export function AliasCard({
                                 void copyAddress();
                             }}
                         />
-                        <IconButton
-                            variant="ghost"
-                            size="sm"
-                            label={t("edit")}
-                            tooltip={t("edit")}
-                            icon={<TbEdit />}
-                            isDisabled={selectEnabled}
-                            onClick={onEdit}
-                        />
+                        {/* With a detail pane, the card itself opens the alias. */}
+                        {!onOpen && (
+                            <IconButton
+                                variant="ghost"
+                                size="sm"
+                                label={t("edit")}
+                                tooltip={t("edit")}
+                                icon={<TbEdit />}
+                                isDisabled={selectEnabled}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEdit();
+                                }}
+                            />
+                        )}
                         <IconButton
                             variant="ghost"
                             size="sm"
@@ -110,7 +122,10 @@ export function AliasCard({
                             tooltip={t("delete")}
                             icon={<TbTrash />}
                             isDisabled={selectEnabled}
-                            onClick={onDelete}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete();
+                            }}
                         />
                     </HStack>
                     <AliasBadge alias={alias} />

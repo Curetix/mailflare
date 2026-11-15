@@ -80,6 +80,12 @@ const toAlias = (alias: Api.Alias): Alias => ({
     enabled: alias.enabled,
     isExternal: false,
     order: alias.createdAt,
+    stats: {
+        forwarded: alias.forwardedCount,
+        blocked: alias.blockedCount,
+        sent: alias.sentCount,
+        lastEmailAt: alias.lastEmailAt,
+    },
 });
 
 export class WorkerBackend implements AliasBackend {

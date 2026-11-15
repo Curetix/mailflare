@@ -10,7 +10,8 @@ import ReactDOM from "react-dom/client";
 
 const storageAdapter = new ExtensionStorageAdapter();
 const persister = createExtensionPersister(storageAdapter);
-const locale = chrome.i18n?.getUILanguage?.()?.split("-")[0] || "en";
+// Only English messages exist; format dates and numbers to match them.
+const locale = "en";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>

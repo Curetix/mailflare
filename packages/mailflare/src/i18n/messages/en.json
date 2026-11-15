@@ -48,7 +48,8 @@
         "rules_error": "Something went wrong while loading your aliases: {error}",
         "no_worker_domains": "Add the domains your Worker receives mail for to start creating aliases.",
         "add_domain": "Add domain",
-        "no_shared_domains": "There are no domains to create aliases on yet. Ask the admin of this Worker to share one."
+        "no_shared_domains": "There are no domains to create aliases on yet. Ask the admin of this Worker to share one.",
+        "count": "{count, plural, one {# alias} other {# aliases}}"
     },
     "alias_create": {
         "title": "Create Alias",
@@ -212,6 +213,15 @@
             "title": "Accounts",
             "description": "People with an account on this Worker",
             "action": "Manage"
+        },
+        "worker": {
+            "title": "Domains, inboxes and account",
+            "description": "Managed in your Worker's own app.",
+            "action": "Open"
+        },
+        "admin": {
+            "title": "Admin",
+            "description": "Domains and accounts of this Worker"
         }
     },
     "background": {
@@ -331,6 +341,13 @@
             "sign_in_first": "Sign in to connect the Mailflare extension.",
             "invalid": "This connection request is invalid. Start again from the extension.",
             "admin_token": "You're signed in with the admin token. Enter it in the extension instead, or log out here and sign in with an account."
+        },
+        "page": {
+            "description": "Signed in as {email}.",
+            "passkeys_empty": "No passkeys yet. Add one to sign in without a password.",
+            "passkey_unnamed": "Passkey added {date}",
+            "delete_passkey": "Remove passkey",
+            "passkey_removed": "Passkey removed"
         }
     },
     "users": {
@@ -344,6 +361,28 @@
         "suspend": "Suspend",
         "unsuspend": "Unsuspend",
         "you": "You",
-        "error": "Could not load accounts: {error}"
+        "error": "Could not load accounts: {error}",
+        "description": "People with an account on this Worker. Suspending an account signs it out everywhere and stops its aliases."
+    },
+    "nav": {
+        "aliases": "Aliases",
+        "inboxes": "Inboxes",
+        "account": "Account",
+        "settings": "Settings",
+        "admin": "Admin",
+        "domains": "Domains",
+        "accounts": "Accounts",
+        "pages": "Pages",
+        "cloudflare": "Cloudflare Email Routing"
+    },
+    "alias_details": {
+        "activity": "Activity",
+        "forwarded": "Forwarded",
+        "blocked": "Blocked",
+        "sent": "Sent",
+        "last_mail": "Last mail",
+        "never": "Never",
+        "close": "Close",
+        "empty": "Select an alias to see what it handled and to edit it."
     }
 }

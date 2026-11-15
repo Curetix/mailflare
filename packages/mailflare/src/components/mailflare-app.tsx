@@ -4,6 +4,8 @@ import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
 import { useEffect, useState } from "react";
 import { useTranslations } from "use-intl";
+import { Redirect, Route, Router, Switch, useLocation, useSearch } from "wouter";
+import { useHashLocation } from "wouter/use-hash-location";
 
 import { sessionFromCookie } from "../account/account-client";
 import { useAccountErrorMessage } from "../account/use-account-error";
@@ -16,58 +18,42 @@ import {
     ResetPasswordPage,
     VerifyDestinationPage,
 } from "./account-pages";
-import { AliasList } from "./alias-list";
+import { AppFrame } from "./app-frame";
 import { AppLayout } from "./app-layout";
 import { Login, useConnect } from "./login";
-
-/** Pages email links open; only when a Worker serves the app. */
-const LINK_PAGES: Record<string, typeof ResetPasswordPage | undefined> = {
-    "/reset-password": ResetPasswordPage,
-    "/verify-destination": VerifyDestinationPage,
-};
-
-/** Where an email link landed: a page with its token, or the app itself. */
-function readLocation() {
-    const { pathname, searchParams } = new URL(window.location.href);
-    const Page = LINK_PAGES[pathname];
-    const token = searchParams.get("token");
-    return {
-        page: Page && token ? { Page, token } : null,
-        /** `/authorize`: the extension asks to connect (see AuthorizePage). */
-        authorize: pathname === "/authorize" ? (searchParams.get("redirect_uri") ?? "") : null,
-        error: searchParams.get("error"),
-    };
-}
+import { PATHS } from "./navigation";
+import { AccountPage } from "./pages/account-page";
+import { AdminAccountsPage } from "./pages/admin-accounts-page";
+import { AdminDomainsPage } from "./pages/admin-domains-page";
+import { AliasesPage } from "./pages/aliases-page";
+import { InboxesPage } from "./pages/inboxes-page";
+import { SettingsPage } from "./pages/settings-page";
 
 /**
- * The app a Worker serves itself: handles the pages its emails link to, and
- * signs in with the session an email link (verification, magic link) left.
+ * The app a Worker serves itself signs in with the cookie session an email
+ * link (verification, magic link) left: on start, and when the window gets
+ * focus again (a magic link opened in another tab). Errors from such links
+ * arrive as `?error=`.
  */
-function LockedApp({ url }: { url: string }) {
+function useWorkerSession(url: string | undefined) {
     const apiToken = useAuthStore((s) => s.apiToken);
-    const t = useTranslations("account");
     const toast = useToast();
     const errorMessage = useAccountErrorMessage();
     const connect = useConnect();
-    const [location, setLocation] = useState(readLocation);
-    const [checkingSession, setCheckingSession] = useState(!apiToken);
-
-    const goHome = () => {
-        window.history.replaceState(null, "", "/");
-        setLocation(readLocation());
-    };
+    const [, navigate] = useLocation();
+    const [checking, setChecking] = useState(!!url && !apiToken);
 
     useEffect(() => {
-        if (!location.error) return;
-        toast({ body: errorMessage({ code: location.error }), type: "error" });
-        goHome();
+        if (!url) return;
+        const error = new URLSearchParams(window.location.search).get("error");
+        if (!error) return;
+        toast({ body: errorMessage({ code: error }), type: "error" });
+        navigate("/", { replace: true });
         // Only for the error the page was opened with.
-    }, [location.error]);
+    }, []);
 
-    // Sign in with a cookie session an email link left: on start, and when the
-    // window gets focus again (a magic link opened in another tab).
     useEffect(() => {
-        if (apiToken) return;
+        if (!url || apiToken) return;
         let cancelled = false;
         const check = () =>
             sessionFromCookie(url)
@@ -77,53 +63,106 @@ function LockedApp({ url }: { url: string }) {
                         : null,
                 )
                 .catch(() => {})
-                .finally(() => !cancelled && setCheckingSession(false));
+                .finally(() => !cancelled && setChecking(false));
         void check();
         window.addEventListener("focus", check);
         return () => {
             cancelled = true;
             window.removeEventListener("focus", check);
         };
-    }, [apiToken]);
+    }, [url, apiToken]);
 
-    if (location.page) {
-        const { Page, token } = location.page;
-        return <Page url={url} token={token} onDone={goHome} />;
-    }
-    if (location.authorize !== null) {
-        const redirectUri = location.authorize;
-        if (!isExtensionRedirect(redirectUri)) {
-            return <Banner status="error" title={t("authorize.invalid")} />;
-        }
-        if (apiToken) {
-            return <AuthorizePage url={url} apiToken={apiToken} redirectUri={redirectUri} />;
-        }
-        return checkingSession ? (
-            <Spinner />
-        ) : (
+    return { checking };
+}
+
+/** Pages the Worker's emails link to; they work signed in or not. */
+function LinkPage({ url, Page }: { url: string; Page: typeof ResetPasswordPage }) {
+    const token = new URLSearchParams(useSearch()).get("token");
+    const [, navigate] = useLocation();
+    if (!token) return <Redirect to="/" replace />;
+    return (
+        <AppLayout>
+            <Page url={url} token={token} onDone={() => navigate("/", { replace: true })} />
+        </AppLayout>
+    );
+}
+
+/** `/authorize`: the extension asks to connect (see AuthorizePage). */
+function AuthorizeRoute({ url, checking }: { url: string; checking: boolean }) {
+    const t = useTranslations("account");
+    const apiToken = useAuthStore((s) => s.apiToken);
+    const redirectUri = new URLSearchParams(useSearch()).get("redirect_uri") ?? "";
+
+    let content;
+    if (!isExtensionRedirect(redirectUri)) {
+        content = <Banner status="error" title={t("authorize.invalid")} />;
+    } else if (apiToken) {
+        content = <AuthorizePage url={url} apiToken={apiToken} redirectUri={redirectUri} />;
+    } else if (checking) {
+        content = <Spinner />;
+    } else {
+        content = (
             <VStack gap={3}>
                 <Banner status="info" title={t("authorize.sign_in_first")} />
                 <AccountLogin url={url} />
             </VStack>
         );
     }
-    if (apiToken) return <AliasList />;
-    return checkingSession ? <Spinner /> : <AccountLogin url={url} />;
+    return <AppLayout>{content}</AppLayout>;
+}
+
+function AppRoutes() {
+    const { lockedWorkerUrl: url } = useCloudflareConfig();
+    const apiToken = useAuthStore((s) => s.apiToken);
+    const [location] = useLocation();
+    const { checking } = useWorkerSession(url);
+
+    if (url) {
+        if (location === "/reset-password") return <LinkPage url={url} Page={ResetPasswordPage} />;
+        if (location === "/verify-destination") {
+            return <LinkPage url={url} Page={VerifyDestinationPage} />;
+        }
+        if (location === "/authorize") return <AuthorizeRoute url={url} checking={checking} />;
+    }
+
+    if (!apiToken) {
+        return (
+            <AppLayout>
+                {checking ? <Spinner /> : url ? <AccountLogin url={url} /> : <Login />}
+            </AppLayout>
+        );
+    }
+
+    // Management pages only exist in the Worker's own app.
+    const workerPages = url
+        ? [
+              <Route key="inboxes" path={PATHS.inboxes} component={InboxesPage} />,
+              <Route key="account" path={PATHS.account} component={AccountPage} />,
+              <Route key="domains" path={PATHS.adminDomains} component={AdminDomainsPage} />,
+              <Route key="accounts" path={PATHS.adminAccounts} component={AdminAccountsPage} />,
+          ]
+        : [];
+
+    return (
+        <AppFrame>
+            <Switch>
+                <Route path={PATHS.aliases} component={AliasesPage} />
+                <Route path={PATHS.settings} component={SettingsPage} />
+                {workerPages}
+                <Route>
+                    <Redirect to={PATHS.aliases} replace />
+                </Route>
+            </Switch>
+        </AppFrame>
+    );
 }
 
 export function MailflareApp() {
-    const apiToken = useAuthStore((s) => s.apiToken);
-    const { lockedWorkerUrl } = useCloudflareConfig();
-
+    const { isExtension } = useCloudflareConfig();
+    // The extension popup has no paths of its own; it routes in the hash.
     return (
-        <AppLayout>
-            {lockedWorkerUrl ? (
-                <LockedApp url={lockedWorkerUrl} />
-            ) : apiToken ? (
-                <AliasList />
-            ) : (
-                <Login />
-            )}
-        </AppLayout>
+        <Router {...(isExtension && { hook: useHashLocation })}>
+            <AppRoutes />
+        </Router>
     );
 }

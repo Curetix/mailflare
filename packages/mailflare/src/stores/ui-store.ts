@@ -38,7 +38,6 @@ export type UIState = {
     createOpen: boolean;
     editOpen: boolean;
     deleteOpen: boolean;
-    manageDomainsOpen: boolean;
     selectEnabled: boolean;
     searchVisible: boolean;
     aliasToEditId: string | null;
@@ -59,7 +58,6 @@ export type UIState = {
     setCreateOpen: (open: boolean) => void;
     setEditOpen: (open: boolean) => void;
     setDeleteOpen: (open: boolean) => void;
-    setManageDomainsOpen: (open: boolean) => void;
     setSelectEnabled: (enabled: boolean) => void;
     setSearchVisible: (visible: boolean) => void;
     setAliasToEditId: (id: string | null) => void;
@@ -113,7 +111,6 @@ export const useUIStore = create<UIState>((set, get) => ({
     createOpen: false,
     editOpen: false,
     deleteOpen: false,
-    manageDomainsOpen: false,
     selectEnabled: false,
     searchVisible: false,
     aliasToEditId: null,
@@ -144,7 +141,6 @@ export const useUIStore = create<UIState>((set, get) => ({
     },
     setEditOpen: (editOpen) => set({ editOpen }),
     setDeleteOpen: (deleteOpen) => set({ deleteOpen }),
-    setManageDomainsOpen: (manageDomainsOpen) => set({ manageDomainsOpen }),
     setSelectEnabled: (selectEnabled) => {
         set({ selectEnabled });
         persistState(get());

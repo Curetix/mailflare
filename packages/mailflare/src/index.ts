@@ -11,7 +11,6 @@ export { AliasDeleteDialog } from "./components/alias-delete-dialog";
 export { AliasBulkEditDialog } from "./components/alias-bulk-edit-dialog";
 export { AliasBulkDeleteDialog } from "./components/alias-bulk-delete-dialog";
 export { LogoutDialog } from "./components/logout-dialog";
-export { SettingsDrawer } from "./components/settings-drawer";
 export { OfflineBanner } from "./components/offline-banner";
 export { ImportWizard } from "./components/import";
 
@@ -46,6 +45,7 @@ export type {
     AliasBackend,
     AliasChanges,
     AliasDomain,
+    AliasStats,
     BackendKind,
     Connection,
     Destination,

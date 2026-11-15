@@ -1,10 +1,12 @@
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
+import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Link } from "@astryxdesign/core/Link";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Spinner } from "@astryxdesign/core/Spinner";
+import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,10 +21,13 @@ import {
     TbTrash,
 } from "react-icons/tb";
 import { useTranslations } from "use-intl";
+import { useLocation } from "wouter";
 
+import { useCloudflareConfig } from "../api/config-context";
 import type { Alias } from "../backend/types";
 import { useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
+import { useAuthStore } from "../stores/auth-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { useUIStore } from "../stores/ui-store";
 import { sort } from "../utils/sort";
@@ -32,9 +37,17 @@ import { AliasCard } from "./alias-card";
 import { AliasCreateDialog } from "./alias-create-dialog";
 import { AliasDeleteDialog } from "./alias-delete-dialog";
 import { AliasEditDialog } from "./alias-edit-dialog";
-import { ManageDomainsDialog } from "./manage-domains-dialog";
+import { PATHS } from "./navigation";
 
-export function AliasList() {
+type AliasListProps = {
+    /** Wide screens: domains are in the sidebar, not in a selector here. */
+    hideDomainSelector?: boolean;
+    /** Wide screens: opens an alias in the detail pane instead of the edit dialog. */
+    onOpenAlias?: (alias: Alias) => void;
+    openAliasId?: string | null;
+};
+
+export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: AliasListProps) {
     const t = useTranslations("alias_list");
     const tc = useTranslations("common");
 
@@ -62,8 +75,9 @@ export function AliasList() {
     const setEditOpen = useUIStore((s) => s.setEditOpen);
     const deleteOpen = useUIStore((s) => s.deleteOpen);
     const setDeleteOpen = useUIStore((s) => s.setDeleteOpen);
-    const manageDomainsOpen = useUIStore((s) => s.manageDomainsOpen);
-    const setManageDomainsOpen = useUIStore((s) => s.setManageDomainsOpen);
+    const { lockedWorkerUrl } = useCloudflareConfig();
+    const workerUrl = useAuthStore((s) => s.workerUrl);
+    const [, navigate] = useLocation();
     const selectEnabled = useUIStore((s) => s.selectEnabled);
     const setSelectEnabled = useUIStore((s) => s.setSelectEnabled);
     const searchVisible = useUIStore((s) => s.searchVisible);
@@ -122,19 +136,13 @@ export function AliasList() {
         }
     }, [setScrollPosition]);
 
+    const selectedZone = zones.data?.find((zone) => zone.id === selectedZoneId);
     const noZoneSelected = !zones.data || zones.data.length === 0 || selectedZoneId === null;
     const routingNotReady = !!selectedZoneId && zoneStatus.data?.ready === false;
 
     return (
         <VStack gap={2}>
             <AliasCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
-
-            {canManageDomains && (
-                <ManageDomainsDialog
-                    open={manageDomainsOpen}
-                    onClose={() => setManageDomainsOpen(false)}
-                />
-            )}
 
             <AliasEditDialog
                 open={editOpen && !!aliasToEdit && selectedAliases.length === 0}
@@ -178,18 +186,32 @@ export function AliasList() {
                 selectedAliases={selectedAliases}
             />
 
+            {/* WIDE: the sidebar selects the domain; name it here */}
+            {hideDomainSelector && selectedZone && (
+                <HStack gap={2} align="end">
+                    <Heading level={2}>{selectedZone.name}</Heading>
+                    {aliases.isSuccess && (
+                        <Text type="supporting">
+                            {t("count", { count: aliases.data?.length ?? 0 })}
+                        </Text>
+                    )}
+                </HStack>
+            )}
+
             {/* DOMAIN SELECTOR */}
-            <Selector
-                label={t("domain_placeholder")}
-                isLabelHidden
-                width="100%"
-                placeholder={t("domain_placeholder")}
-                value={selectedZoneId ?? undefined}
-                onChange={setSelectedZoneId}
-                isLoading={zones.isFetching}
-                isDisabled={!zones.data || zones.data.length === 0}
-                options={zones.data?.map((z) => ({ value: z.id, label: z.name })) ?? []}
-            />
+            {!hideDomainSelector && (
+                <Selector
+                    label={t("domain_placeholder")}
+                    isLabelHidden
+                    width="100%"
+                    placeholder={t("domain_placeholder")}
+                    value={selectedZoneId ?? undefined}
+                    onChange={setSelectedZoneId}
+                    isLoading={zones.isFetching}
+                    isDisabled={!zones.data || zones.data.length === 0}
+                    options={zones.data?.map((z) => ({ value: z.id, label: z.name })) ?? []}
+                />
+            )}
 
             {/* ACTION BUTTONS */}
             <HStack gap={1}>
@@ -307,11 +329,23 @@ export function AliasList() {
                         status="info"
                         title={t("no_worker_domains")}
                         endContent={
-                            <Button
-                                size="sm"
-                                label={t("add_domain")}
-                                onClick={() => setManageDomainsOpen(true)}
-                            />
+                            // Domains are managed in the Worker's own app.
+                            lockedWorkerUrl ? (
+                                <Button
+                                    size="sm"
+                                    label={t("add_domain")}
+                                    onClick={() => navigate(PATHS.adminDomains)}
+                                />
+                            ) : (
+                                workerUrl && (
+                                    <Button
+                                        size="sm"
+                                        label={t("add_domain")}
+                                        href={workerUrl}
+                                        target="_blank"
+                                    />
+                                )
+                            )
                         }
                     />
                 ) : (
@@ -347,9 +381,15 @@ export function AliasList() {
                                 isSelected={selectedAliases.some((a) => a.id === alias.id)}
                                 onSelect={() => toggleAliasSelection(alias)}
                                 onEdit={() => {
+                                    if (onOpenAlias) {
+                                        onOpenAlias(alias);
+                                        return;
+                                    }
                                     setAliasToEditId(alias.id);
                                     setEditOpen(true);
                                 }}
+                                onOpen={onOpenAlias && (() => onOpenAlias(alias))}
+                                isOpen={alias.id === openAliasId}
                                 onDelete={() => {
                                     setAliasToDeleteId(alias.id);
                                     setDeleteOpen(true);
