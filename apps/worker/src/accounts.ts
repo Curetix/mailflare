@@ -63,6 +63,9 @@ export function createAuth(
         rateLimit: { enabled: true, storage: "database" },
         // The client's IP on Cloudflare (used for rate limits and sessions).
         advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
+        // Accounts can delete themselves (their aliases and inboxes go with
+        // them); with a password, or within a day of signing in.
+        user: { deleteUser: { enabled: true } },
         emailAndPassword: {
             enabled: true,
             requireEmailVerification: true,

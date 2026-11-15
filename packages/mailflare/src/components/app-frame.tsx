@@ -4,7 +4,6 @@
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { HStack } from "@astryxdesign/core/HStack";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
-import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { ReactNode } from "react";
@@ -77,18 +76,56 @@ function Sidebar({ items }: { items: NavItem[] }) {
     );
 }
 
+/** App-style bottom navigation: icons above labels, the current page in the accent color. */
 function BottomTabs({ items }: { items: NavItem[] }) {
+    const t = useTranslations("nav");
     const [location, navigate] = useLocation();
     const tabs = items.filter((nav) => !nav.isAdmin);
     // Admin pages are reached from the settings page on narrow screens.
     const current = tabs.some((nav) => nav.path === location) ? location : PATHS.settings;
 
     return (
-        <TabList value={current} onChange={navigate} layout="fill">
-            {tabs.map((nav) => (
-                <Tab key={nav.path} value={nav.path} label={nav.label} icon={nav.icon} />
-            ))}
-        </TabList>
+        <nav
+            aria-label={t("pages")}
+            style={{
+                display: "flex",
+                borderTop: "1px solid var(--color-border)",
+                background: "var(--color-background-surface)",
+                paddingBottom: "env(safe-area-inset-bottom)",
+            }}
+        >
+            {tabs.map((nav) => {
+                const isCurrent = nav.path === current;
+                return (
+                    <button
+                        key={nav.path}
+                        type="button"
+                        aria-current={isCurrent ? "page" : undefined}
+                        onClick={() => navigate(nav.path)}
+                        style={{
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: 2,
+                            padding: "8px 4px 6px",
+                            border: "none",
+                            background: "none",
+                            cursor: "pointer",
+                            font: "inherit",
+                            fontSize: "var(--font-size-xs)",
+                            fontWeight: isCurrent ? 600 : 400,
+                            color: isCurrent
+                                ? "var(--color-text-accent)"
+                                : "var(--color-text-secondary)",
+                        }}
+                    >
+                        <span style={{ fontSize: 22, lineHeight: 0 }}>{nav.icon}</span>
+                        {nav.label}
+                    </button>
+                );
+            })}
+        </nav>
     );
 }
 
