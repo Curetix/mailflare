@@ -13,7 +13,8 @@
     "dependencies": {
         "@mailflare/core": "workspace:*",
         "react": "catalog:",
-        "react-dom": "catalog:"
+        "react-dom": "catalog:",
+        "workbox-window": "^7.4.1"
     },
     "devDependencies": {
         "@mailflare/config": "workspace:*",
