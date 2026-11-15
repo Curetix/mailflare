@@ -31,6 +31,23 @@ export default defineConfig(({ mode }) => ({
             },
         }),
     ],
+    build: {
+        rolldownOptions: {
+            output: {
+                // React changes rarely: its own file stays cached when the app
+                // is updated. (Not Astryx: a group would also pull in the parts
+                // it loads on demand.)
+                codeSplitting: {
+                    groups: [
+                        {
+                            name: "react",
+                            test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+                        },
+                    ],
+                },
+            },
+        },
+    },
     server: {
         proxy: {
             "/api": {
