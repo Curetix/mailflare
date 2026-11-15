@@ -112,8 +112,9 @@ pnpm exec wrangler secret put AUTH_SECRET   # another one, for accounts
 ```
 
 Then, for each domain, set the Email Routing catch-all action to
-"Send to a Worker", choose `mailflare`, and add the domain and your
-destinations through the API.
+"Send to a Worker" and choose `mailflare`. Add the domains and your
+destinations in the app the Worker serves (**Admin** → **Domains**,
+**Inboxes**) or through the API.
 
 ## API
 

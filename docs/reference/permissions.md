@@ -9,29 +9,41 @@ The MailFlare browser extension requests the following permissions:
 
 ### `storage`
 
-Used to store your API token, settings, alias preferences, and cached data locally in the browser. Data never leaves your device except for API calls to Cloudflare.
+Stores your token, settings, alias preferences, and cached data locally in the browser.
 
 ### `contextMenus`
 
-Used to add the "Generate and copy new MailFlare alias" option to the browser's right-click context menu.
+Adds "Generate and copy new MailFlare alias" to the right-click menu.
 
 ### `clipboardWrite`
 
-Used to copy newly created aliases to your clipboard — both from the popup and the context menu.
+Copies new aliases to your clipboard, from the popup and the context menu.
 
 ### `activeTab`
 
-Used to detect the current website's hostname for domain-based alias prefixes and the quick-create button on email input fields.
+Reads the current website's address, for domain-based aliases and descriptions.
+
+### `identity`
+
+Signs you in to an account on a [Mailflare Worker](../guides/worker-mode.md): the Worker's sign-in
+page opens in a browser window and hands the extension a session when you allow it.
 
 ## Host Permissions
 
 ### `https://api.cloudflare.com/*`
 
-The extension communicates directly with the Cloudflare API to manage your email routing rules. This host permission allows those requests.
+With a Cloudflare API token, the extension talks to the Cloudflare API directly. If you withdraw
+this access, MailFlare shows a banner with an **Allow access** button. A Mailflare Worker doesn't
+need it.
+
+## Content Script
+
+On `https://` pages, MailFlare adds the optional quick-create button to email fields and shows the
+notifications of the context menu.
 
 ## What MailFlare Does NOT Do
 
-- Does **not** collect or transmit analytics or telemetry
+- Does **not** collect or send analytics or telemetry
 - Does **not** access your browsing history
-- Does **not** modify web page content (except for the optional quick-create overlay button and alert notifications)
-- Does **not** store your API token on any external server
+- Does **not** change web pages, except for the optional quick-create button and notifications
+- Does **not** send your token anywhere except to Cloudflare's API or your own Mailflare Worker

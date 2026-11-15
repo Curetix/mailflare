@@ -9,16 +9,14 @@ The MailFlare web app can be self-hosted on your own Cloudflare Pages project. T
 
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up)
 - A domain with [Email Routing](https://developers.cloudflare.com/email-routing/) enabled
-- [Node.js](https://nodejs.org/) v20+ and [pnpm](https://pnpm.io/) installed (for manual deployment)
+- [Node.js](https://nodejs.org/) 22.12 or newer and [pnpm](https://pnpm.io/)
 
 > [!TIP]
 > The repository's "Deploy to Cloudflare" button deploys the [Mailflare Worker](worker-mode.md)
 > instead, which serves its own copy of the web app, connected to that Worker. This guide is for
 > the web app that connects with a Cloudflare API token.
 
-## Manual Deployment
-
-If you prefer to deploy manually, follow these steps:
+## Deployment
 
 1. **Clone the repository**
 
@@ -44,10 +42,15 @@ If you prefer to deploy manually, follow these steps:
 4. **Deploy to Cloudflare Pages**
 
     ```bash
-    npx wrangler pages deploy apps/web/dist --project-name mailflare
+    cd apps/web
+    npx wrangler pages deploy dist --project-name mailflare
     ```
 
-    Or deploy the `dist/` folder to any static hosting provider of your choice.
+    Run it from `apps/web`: Wrangler deploys the `functions/` folder next to it, the API proxy.
+
+    Other static hosts work for the app itself, but signing in with a Cloudflare API token needs
+    the `/api` proxy, which only runs on Cloudflare Pages. Connecting to a Mailflare Worker works
+    anywhere.
 
 ## How It Works
 
@@ -76,10 +79,9 @@ To update your deployment to the latest version:
     ```bash
     pnpm install
     pnpm --filter @mailflare/web build
-    npx wrangler pages deploy apps/web/dist --project-name mailflare
+    cd apps/web
+    npx wrangler pages deploy dist --project-name mailflare
     ```
-
-If you used the one-click deploy, your Cloudflare Pages project is connected to your fork. Simply sync your fork with the upstream repository and Cloudflare Pages will automatically rebuild and deploy.
 
 ## Custom Domain
 
