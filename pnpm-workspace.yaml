@@ -12,3 +12,5 @@ allowBuilds:
     # Platform binary checks for wrangler/vitest (esbuild bundler, workerd runtime).
     esbuild: true
     workerd: true
+    # Runs `lefthook install` to set up the git hooks (skipped in CI).
+    lefthook: true
