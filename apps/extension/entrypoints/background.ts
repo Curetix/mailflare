@@ -169,6 +169,8 @@ export default defineBackground(() => {
         chrome.contextMenus.create({
             title: "Generate and copy new MailFlare alias",
             contexts: ["page", "editable"],
+            // Where the content script runs, which shows the result and copies the alias.
+            documentUrlPatterns: ["https://*/*"],
             id: "mailflare-generate",
         });
     });
