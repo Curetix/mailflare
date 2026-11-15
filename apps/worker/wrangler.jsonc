@@ -19,6 +19,8 @@
     // Re-sends incoming mail (free to verified destinations) and sends from
     // aliases (arbitrary recipients: Workers Paid plan with a sending domain).
     "send_email": [{ "name": "EMAIL" }],
+    // Daily housekeeping: expired links, sessions and counters.
+    "triggers": { "crons": ["17 3 * * *"] },
     "d1_databases": [
         {
             // No database_id: `wrangler deploy` creates the database on first deploy.
