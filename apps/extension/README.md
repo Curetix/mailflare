@@ -24,9 +24,13 @@ pnpm check-types
 ```sh
 pnpm build          # .output/chrome-mv3
 pnpm build:firefox  # .output/firefox-mv3
-pnpm zip            # store zips
-pnpm zip:firefox
+pnpm zip            # .output/mailflare-<version>-chrome.zip
+pnpm zip:firefox    # …-firefox.zip, and …-sources.zip for Firefox's review
 ```
+
+The sources ZIP holds what Firefox reviewers need to rebuild the extension: the extension, the
+shared packages and the workspace files, with build steps in `SOURCE_CODE_REVIEW.md`. Releases are
+built and submitted by CI, see [RELEASING.md](../../RELEASING.md).
 
 Both browsers get Manifest V3. Firefox builds keep the add-on ID 1.x was published under
 (`wxt.config.ts`), so existing installations update. The version comes from `package.json`.
