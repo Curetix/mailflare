@@ -8,7 +8,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Astro** - The web framework for content-driven websites
 - **TailwindCSS** - Utility-first CSS for rapid UI development
 - **Oxlint** - Oxlint + Oxfmt (linting & formatting)
-- **Husky** - Git hooks for code quality
+- **Lefthook** - Git hooks (formats staged files)
 - **Starlight** - Documentation site with Astro
 
 ## Getting Started
