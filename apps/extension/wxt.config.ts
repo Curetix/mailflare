@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "wxt";
 
 export default defineConfig({
@@ -5,6 +7,26 @@ export default defineConfig({
     imports: false,
     // WXT defaults to MV2 for Firefox; Mailflare has shipped MV3 there since 1.x.
     manifestVersion: 3,
+    zip: {
+        name: "mailflare",
+        // Firefox reviewers rebuild from the sources ZIP, which needs the shared
+        // packages and the workspace too (see SOURCE_CODE_REVIEW.md).
+        sourcesRoot: fileURLToPath(new URL("../..", import.meta.url)),
+        includeSources: [
+            "package.json",
+            "pnpm-lock.yaml",
+            "pnpm-workspace.yaml",
+            "tsconfig.json",
+            "LICENSE",
+            "SOURCE_CODE_REVIEW.md",
+            "apps/extension/**",
+            "packages/**",
+            // The app's types for the Worker API (type-only imports).
+            "apps/worker/package.json",
+            "apps/worker/src/api/types.ts",
+        ],
+        excludeSources: ["**/README.md", "**/test/**"],
+    },
     manifest: ({ browser }) => ({
         name: "MailFlare - Email Alias Extension",
         description:
