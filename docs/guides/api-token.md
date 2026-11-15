@@ -3,7 +3,8 @@ title: API Token Setup
 description: How to create a Cloudflare API token for MailFlare.
 ---
 
-MailFlare requires a Cloudflare API token to manage your email routing rules. Follow these steps to create one.
+To manage your aliases as Email Routing rules, MailFlare needs a Cloudflare API token. Follow
+these steps to create one. (With a [Mailflare Worker](worker-mode.md) you don't need one.)
 
 ## Creating the Token
 
@@ -28,7 +29,8 @@ MailFlare requires a Cloudflare API token to manage your email routing rules. Fo
 ## Using the Token
 
 1. Open MailFlare (extension popup or web app)
-2. Paste the token into the API Token field
+2. On the sign-in screen, keep **Cloudflare API** selected and paste the token into the
+   **Cloudflare API Token** field
 3. Click **"Save token"**
 
 MailFlare will verify the token and load your domains. The token is stored locally in your browser and is never sent to any server other than Cloudflare's API.
@@ -37,4 +39,6 @@ MailFlare will verify the token and load your domains. The token is stored local
 
 - The token only has access to email routing — it cannot modify DNS, firewall rules, or other Cloudflare settings
 - You can revoke the token at any time from the [Cloudflare dashboard](https://dash.cloudflare.com/profile/api-tokens)
+- In the extension, the token is sent straight to `api.cloudflare.com`. If you withdrew the
+  extension's access to that site, MailFlare shows a banner with an **Allow access** button
 - For the web app, API requests are proxied through Cloudflare Pages Functions to avoid CORS issues — the token is sent directly to Cloudflare's API and is not stored server-side

@@ -5,45 +5,50 @@ description: How to create, edit, search, and delete email aliases.
 
 ## Viewing Aliases
 
-After logging in, MailFlare loads your Cloudflare zones (domains). Select a domain from the dropdown to view its email aliases.
+After you sign in, MailFlare loads your domains. Pick one to see its aliases: from the dropdown
+above the list in the extension and on phones, or from the **Aliases** section of the sidebar on
+large screens.
 
-- Aliases created by MailFlare show their description (usually the website name)
-- External aliases (not created by MailFlare) are marked with a blue "External" badge
-- Disabled aliases are marked with a red "Disabled" badge
-- Aliases with invalid or unverified destinations show a red "Invalid" badge
+- Each alias shows its description (usually the website it's for)
+- Rules created outside MailFlare are marked **External** (Email Routing rules only, and only if
+  the [rule filter](settings.md#rule-filter) is off)
+- Disabled aliases are marked **Disabled**
+- Aliases whose destination is missing or unverified are marked **Invalid**
 
 ## Creating Aliases
 
-Click the **+** button to open the create dialog. You can configure:
+Click **+** (or **Create alias** on large screens) to open the create dialog. You can configure:
 
 ### Alias Format
 
-- **Characters** — random alphanumeric string (e.g., `abc12@domain.com`)
-- **Words** — random English words (e.g., `happy_cloud@domain.com`)
-- **Domain** (extension only) — uses the current website's domain as the alias
-- **Custom** — enter your own alias address
+- **Random Characters**: a random string, e.g. `abc12@domain.com`
+- **Random Words**: random English words, e.g. `happy_cloud@domain.com`
+- **Website Domain** (extension only): the current website's domain as the alias
+- **Custom**: your own alias address
 
 ### Prefix
 
-- **None** — no prefix
-- **Domain without extension** — e.g., `github_abc12@domain.com`
-- **Domain with extension** — e.g., `github.com_abc12@domain.com`
-- **Full domain** — e.g., `www.github.com_abc12@domain.com`
-- **Custom** — enter your own prefix
+- **None**
+- **Domain without TLD**: e.g. `github_abc12@domain.com`
+- **Domain with TLD**: e.g. `github.com_abc12@domain.com`
+- **Full Domain**: e.g. `www.github.com_abc12@domain.com`
+- **Custom Prefix**: your own prefix
 
 ### Other Options
 
-- **Description** — a note for the alias (defaults to the current hostname in the extension)
-- **Destination** — which verified email address receives forwarded mail
-- **Save settings** — remember your preferred format for next time
+- **Description**: a note for the alias (the current website in the extension)
+- **Destination**: the inbox that receives the alias's mail
+- **Save as Default**: remember these choices for next time, and for the context menu and the
+  quick-create button
 
 ## Editing Aliases
 
-Click the edit icon on any alias card to change its:
+Click the edit icon on an alias to change its description, its destination, or whether it's
+enabled.
 
-- Description
-- Destination email address
-- Enabled/disabled status
+In the web app on a large screen, clicking an alias opens it next to the list instead, where you
+can edit and delete it. With a [Mailflare Worker](../guides/worker-mode.md), this also shows what
+the alias handled: mail forwarded, blocked and sent, and when the last mail arrived.
 
 ## Deleting Aliases
 
@@ -52,11 +57,12 @@ Click the trash icon on an alias to delete it. You'll be asked to confirm.
 ## Bulk Operations
 
 1. Click the select button (checklist icon) to enter selection mode
-2. Tap alias cards to select/deselect them
-3. Use the edit or delete buttons to apply changes to all selected aliases
-4. Bulk edit lets you change the destination or enabled status
+2. Click aliases to select or deselect them
+3. Use the edit or delete buttons to change all selected aliases
+4. Bulk edit changes the destination or whether the aliases are enabled
 5. Bulk delete removes all selected aliases after confirmation
 
 ## Searching
 
-Click the search icon to show the search field. Type to filter aliases by address or description.
+Type in the search field to filter aliases by address or description. In the extension and on
+phones, click the search icon first to show it.

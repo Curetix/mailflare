@@ -15,7 +15,7 @@ The context menu feature lets you generate a new email alias for any website wit
 
 ## Requirements
 
-- You must be logged in to MailFlare (API token configured)
+- You must be signed in to MailFlare (with a Cloudflare API token or to a Mailflare Worker)
 - A domain must be selected in the extension
 - Alias settings must be configured (destination email, format, etc.)
 - The format cannot be "custom" — the context menu only works with auto-generated formats
@@ -25,8 +25,11 @@ The context menu feature lets you generate a new email alias for any website wit
 The context menu uses your saved alias generation settings:
 
 - The **domain** from your selected zone
-- The **format** (characters or words) and related settings
+- The **format** (characters, words or the website's domain) and related settings
 - The **prefix** setting — if set to a domain-based prefix, the current site's hostname is used
 - The **destination** from your saved settings
 
-The alias is created using the Cloudflare API and added to your email routing rules immediately.
+The alias is created right away: as an Email Routing rule, or in your Mailflare Worker.
+
+The menu entry appears on `https://` pages, where MailFlare can show the result and copy the
+alias.

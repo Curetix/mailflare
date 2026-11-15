@@ -30,6 +30,13 @@ The MailFlare web app is available at [app.mailflare.cc](https://app.mailflare.c
 3. In Safari (iOS): tap Share → "Add to Home Screen"
 4. The app will be added to your home screen/desktop and work offline
 
+A [Mailflare Worker](worker-mode.md) serves its own copy of the web app at its URL, connected to
+that Worker. It can be installed the same way.
+
 ## First Setup
 
-After installing, you need to configure a Cloudflare API token. See the [API Token Setup](api-token.md) guide.
+After installing, connect MailFlare to Cloudflare in one of two ways:
+
+- **Cloudflare API**: paste a Cloudflare API token. See [API Token Setup](api-token.md).
+- **Mailflare Worker**: enter your Worker's URL, then its admin token or, if the Worker has
+  accounts, sign in with your account. See [Worker Mode](worker-mode.md).

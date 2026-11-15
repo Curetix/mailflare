@@ -3,34 +3,48 @@ title: Settings
 description: Configure MailFlare to your preferences.
 ---
 
-Access the settings panel by clicking the gear icon in the top-right corner of the app.
+Open **Settings** from the tab bar at the bottom (extension and phones) or the sidebar (large
+screens). Some settings only appear where they apply.
 
 ## Theme
 
-Switch between **Light**, **Dark**, and **Auto** (follows system preference) themes.
+Switch between **Light**, **Dark**, and **Auto** (follows your system).
 
 ## Language
 
-Choose the display language for the MailFlare interface. Currently supported:
-
-- 🇬🇧 English
+MailFlare is in English for now; more languages will follow.
 
 ## Rule Filter
 
-When enabled, only shows email rules created by MailFlare (identified by the `mailflare:` prefix). Disable this to see all email routing rules for a domain, including those created outside of MailFlare.
+Email Routing rules only. When enabled, only rules created by MailFlare are shown (their names
+start with `mailflare:`). Turn it off to also see rules created elsewhere, marked **External**.
 
 ## Copy Alias
 
-When enabled, newly created aliases are automatically copied to your clipboard after creation.
+When enabled, new aliases are copied to your clipboard right after they're created.
 
-## Quick-Create Button (Extension only)
+## Quick-Create Button (extension only)
 
-When enabled, a small button appears inside email input fields on web pages. Clicking it creates a new alias for the current site and pastes it into the field.
+When enabled, a small button appears inside email fields on websites. Clicking it creates an alias
+for the site and fills it in.
+
+## Domains, Inboxes and Account (Mailflare Worker)
+
+When the extension or another copy of the web app is connected to a
+[Mailflare Worker](../guides/worker-mode.md), this opens the Worker's own app, where you manage
+domains, inboxes and your account. In the Worker's app, these are pages of their own; on phones,
+admins find **Domains** and **Accounts** under **Admin** here.
 
 ## Refresh Data
 
-Manually refresh your Cloudflare domains and email destination addresses. Useful if you've made changes in the Cloudflare dashboard.
+Reloads your domains and destination addresses. Useful after changes in the Cloudflare dashboard.
 
 ## Logout
 
-Clears all local data including your API token, cached data, and settings. Your aliases on Cloudflare remain unaffected.
+Signs out and clears all local data: your token, cached data, and settings. Your aliases keep
+working.
+
+## Import Aliases (extension only)
+
+Imports your aliases from addy.io or SimpleLogin: pick the service, preview the aliases, choose the
+domain and destination, and MailFlare creates them one by one.

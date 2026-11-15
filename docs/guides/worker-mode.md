@@ -16,6 +16,7 @@ domains, and the aliases live in the Worker's D1 database.
 | Mail to disabled aliases | Not forwarded                  | Rejected, and counted                                  |
 | Subaddressing            | Optional Cloudflare setting    | `alias+anything@` always reaches `alias@`              |
 | Filtering by alias       | By the `To` address            | Every forwarded mail has an `X-Mailflare-Alias` header |
+| Statistics               | No                             | Mail forwarded, blocked and sent per alias             |
 | Replies                  | From your real address         | From the alias                                         |
 | Other people             | No                             | Optional accounts on domains you share                 |
 | Setup                    | An API token                   | Deploy a Worker, then connect the app                  |
@@ -44,6 +45,16 @@ pnpm run deploy                           # builds the app, deploys, creates the
 pnpm exec wrangler secret put ADMIN_TOKEN # paste your random string
 ```
 
+This needs Node.js 22.12 or newer and [pnpm](https://pnpm.io). The Worker also runs a daily
+cleanup of expired sign-in links and sessions (a cron trigger).
+
+```bash
+# Later, to update:
+git pull
+pnpm install
+pnpm run deploy
+```
+
 The deploy output shows the Worker's URL, for example `https://mailflare.your-name.workers.dev`.
 The Worker also serves the Mailflare web app at that URL, connected to itself.
 
@@ -66,15 +77,21 @@ email. A Cloudflare account can have up to 200 destination addresses.
 
 ## 4. Connect the app
 
-1. In the extension or web app, choose **Mailflare Worker** on the login screen, and enter the
-   Worker URL and your `ADMIN_TOKEN`. In the app the Worker serves itself, open
-   **Sign in with the admin token** instead.
-2. Select **Connect**.
-3. When asked, add your domains. You can also do this later under **Settings** →
-   **Domains & destinations**, which is also where you add your destination addresses.
+Open the Worker's URL: it serves the MailFlare web app, connected to itself.
+
+1. Open **Sign in with the admin token**, paste your `ADMIN_TOKEN` and select **Connect**.
+2. Under **Admin** → **Domains** (in the sidebar on large screens; on phones, under **Settings**),
+   add the domains you pointed at the Worker.
+3. Under **Inboxes**, add the destination addresses you verified in step 3.
+
+The extension and other copies of the web app connect too: on the sign-in screen, choose
+**Mailflare Worker** and enter the Worker URL and your `ADMIN_TOKEN`. Domains and inboxes are
+managed in the Worker's own app; **Settings** → **Domains, inboxes and account** opens it.
 
 Creating, editing and deleting aliases then works the same as in the default mode, including the
-quick-create button and the context menu.
+quick-create button and the context menu. In the web app on a large screen, selecting an alias
+opens it next to the list, with what it handled: mail forwarded, blocked and sent, and when the
+last one arrived.
 
 ## 5. Accounts (optional)
 
@@ -89,12 +106,15 @@ domains you share, forwarding to inboxes they confirm by email.
    per-account limits.
 3. Your domain needs Cloudflare Email Sending (Workers Paid plan) for the Worker to mail sign-in
    links and confirmations.
-4. Sign in to the app the Worker serves with your `ADMIN_EMAILS` address (an emailed sign-in
-   link creates the account). Under **Settings** → **Domains & destinations**, turn on **Shared**
-   for the domains accounts may use, and under **Settings** → **Accounts**, promote or suspend
-   accounts.
+4. Sign in to the app the Worker serves with your `ADMIN_EMAILS` address (**Create account**, or an
+   emailed sign-in link). Under **Admin** → **Domains**, turn on **Shared** for the domains
+   accounts may use. Under **Admin** → **Accounts**, make accounts admins or suspend them.
 
-Accounts can use the extension too: under **Mailflare Worker** on its login screen, enter the
+Every account has an **Account** page: change or set a password, add passkeys, see the signed-in
+devices (including the extension) and sign them out, or delete the account with its aliases and
+inboxes.
+
+Accounts can use the extension too: under **Mailflare Worker** on its sign-in screen, enter the
 Worker URL and select **Sign in with an account**. The Worker's app opens, asks you to allow the
 extension, and gives it a session of its own.
 
