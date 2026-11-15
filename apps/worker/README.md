@@ -26,9 +26,16 @@ To set it up and connect the Mailflare app, see the
 - **Unknown or disabled alias:** rejected with the same "Address does not
   exist" reason, so senders can't tell which addresses exist. Mail to disabled
   aliases is counted as blocked.
+- **Mail loops:** destinations can't be on the Worker's own domains, and mail
+  that already passed through the alias (for example, two aliases forwarding
+  to each other, even across Workers) or through five aliases is rejected as
+  a "Mail loop detected".
 - **Without the `EMAIL` binding** (or if re-sending fails), mail is forwarded
   unchanged with `message.forward()`, which only reaches destinations verified
   in Cloudflare Email Routing. Replying through the alias then isn't possible.
+
+A daily cron trigger deletes expired sign-in links and sessions and old
+rate-limit and sending counters.
 
 Re-sending to destinations verified in Cloudflare is free. Sending to anyone
 else (replies, and destinations of accounts) needs the Workers Paid plan and

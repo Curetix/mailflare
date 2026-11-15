@@ -16,6 +16,8 @@
         "run_worker_first": ["/api/*"],
     },
     "send_email": [{ "name": "EMAIL" }],
+    // Daily housekeeping: expired links, sessions and counters.
+    "triggers": { "crons": ["17 3 * * *"] },
     "d1_databases": [
         {
             "binding": "DB",
