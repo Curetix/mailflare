@@ -13,7 +13,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { normalizeAddress, splitAddress } from "./addresses";
 import { checkSender } from "./auth";
 import { createDb, type Db, schema } from "./db";
-import { parseMessage, serializeMessage } from "./mime";
+import { getHeaders, type ParsedMessage, parseMessage, serializeMessage } from "./mime";
 import {
     keyedReverseAddress,
     parseReverseTag,
@@ -36,6 +36,20 @@ type AliasWithDestination = typeof schema.aliases.$inferSelect & {
     destination: typeof schema.destinations.$inferSelect;
     user: typeof schema.user.$inferSelect | null;
 };
+
+/** Aliases a message may pass through, one forwarding to the next. */
+export const MAX_ALIAS_HOPS = 5;
+export const LOOP_REASON = "Mail loop detected";
+
+/**
+ * Whether delivering to `alias` would go in circles: the message already
+ * passed through it (aliases forwarding to each other, possibly across
+ * Workers), or through more aliases than any sensible chain.
+ */
+export function isLooping(message: ParsedMessage, alias: string): boolean {
+    const hops = getHeaders(message.headers, ALIAS_HEADER).map(normalizeAddress);
+    return hops.includes(alias) || hops.length >= MAX_ALIAS_HOPS;
+}
 
 /** Splits a recipient into the alias address and the subaddress tag (original case). */
 export function parseRecipient(recipient: string): { address: string; tag: string | null } | null {
@@ -142,12 +156,12 @@ async function deliverToOwner(
     env: Env,
     db: Db,
     alias: AliasWithDestination,
-    raw: Uint8Array,
+    parsed: ParsedMessage,
 ) {
     const destination = alias.destination.email;
     if (env.EMAIL) {
         try {
-            const rewritten = await rewriteInbound(parseMessage(raw), {
+            const rewritten = await rewriteInbound(parsed, {
                 alias: alias.address,
                 envelopeFrom: message.from,
                 toReverse: async (contact) => {
@@ -176,7 +190,7 @@ async function sendAsAlias(
     env: Env,
     db: Db,
     alias: AliasWithDestination,
-    raw: Uint8Array,
+    parsed: ParsedMessage,
     target: ReverseTarget,
 ): Promise<boolean> {
     if (!env.EMAIL) {
@@ -196,7 +210,7 @@ async function sendAsAlias(
         message.setReject("You have reached today's sending limit");
         return false;
     }
-    const rewritten = await rewriteOutbound(parseMessage(raw), {
+    const rewritten = await rewriteOutbound(parsed, {
         alias: alias.address,
         fromReverse: async (address) => {
             const recipient = parseRecipient(address);
@@ -231,13 +245,14 @@ export async function handleEmail(
     }
 
     const raw = new Uint8Array(await new Response(message.raw).arrayBuffer());
+    const parsed = parseMessage(raw);
     const target = recipient.tag ? parseReverseTag(recipient.tag) : null;
 
     // Suspended accounts and unconfirmed inboxes get nothing, like disabled aliases.
     const active = alias.enabled && !alias.user?.banned && alias.destination.verifiedAt !== null;
 
     if (target) {
-        const { headers } = parseMessage(raw);
+        const { headers } = parsed;
         const sender = checkSender(headers, message.from, alias.destination.email);
         if (sender.owner && !sender.authenticated) {
             // Header names only (no values), to diagnose authentication setups.
@@ -253,7 +268,7 @@ export async function handleEmail(
                 message.setReject("This alias is disabled");
                 return;
             }
-            if (await sendAsAlias(message, env, db, alias, raw, target)) {
+            if (await sendAsAlias(message, env, db, alias, parsed, target)) {
                 ctx.waitUntil(record(db, alias.id, "sent"));
             }
             return;
@@ -267,6 +282,13 @@ export async function handleEmail(
         return;
     }
 
-    await deliverToOwner(message, env, db, alias, raw);
+    if (isLooping(parsed, alias.address)) {
+        console.warn(`Refused mail for ${alias.address}: ${LOOP_REASON.toLowerCase()}`);
+        ctx.waitUntil(record(db, alias.id, "blocked"));
+        message.setReject(LOOP_REASON);
+        return;
+    }
+
+    await deliverToOwner(message, env, db, alias, parsed);
     ctx.waitUntil(record(db, alias.id, "forwarded"));
 }

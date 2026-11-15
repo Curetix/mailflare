@@ -75,6 +75,24 @@ function message(headers: string[], body: Uint8Array | string = "Body") {
 const names = (headers: { name: string }[]) => headers.map((h) => h.name.toLowerCase());
 
 describe("rewriteInbound", () => {
+    it("keeps the aliases a message already passed through, and adds its own", async () => {
+        const original = message([
+            "From: bob@shop.test",
+            "To: first@other.test",
+            "X-Mailflare-Alias: first@other.test",
+            "Subject: Chained",
+        ]);
+        const out = await rewriteInbound(original, {
+            alias: "alias@me.test",
+            envelopeFrom: "first@other.test",
+            toReverse: async (contact) => `alias+${contact.replace("@", "=")}@me.test`,
+        });
+        const hops = out.headers
+            .filter((h) => h.name.toLowerCase() === "x-mailflare-alias")
+            .map((h) => h.value);
+        expect(hops).toEqual(["first@other.test", "alias@me.test"]);
+    });
+
     it("turns senders and other recipients into reverse addresses and drops traces", async () => {
         // An 8-bit (Latin-1) body must pass through byte for byte.
         const body = new Uint8Array([0x48, 0xe9, 0x6c, 0x6c, 0x6f]);

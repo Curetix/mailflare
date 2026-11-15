@@ -8,17 +8,24 @@ import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import { admin, bearer, magicLink } from "better-auth/plugins";
 
+import { splitAddress } from "./addresses";
 import { createDb, type Db, schema } from "./db";
 import { type AccountEmail, sendAccountEmail } from "./mailer";
 import { getSettings } from "./settings";
 
 export const AUTH_BASE_PATH = "/api/auth";
 
-/** The account email is a destination from the moment it is verified. */
+/**
+ * The account email is a destination from the moment it is verified, unless
+ * it is on one of the Worker's own domains: forwarding there would loop.
+ */
 async function addAccountDestination(db: Db, user: { id: string; email: string }) {
+    const email = user.email.toLowerCase();
+    const domain = splitAddress(email)?.domain ?? "";
+    if (await db.query.domains.findFirst({ where: { name: domain } })) return;
     await db
         .insert(schema.destinations)
-        .values({ userId: user.id, email: user.email.toLowerCase(), verifiedAt: new Date() })
+        .values({ userId: user.id, email, verifiedAt: new Date() })
         .onConflictDoUpdate({
             target: [schema.destinations.userId, schema.destinations.email],
             set: { verifiedAt: new Date(), verificationHash: null },
