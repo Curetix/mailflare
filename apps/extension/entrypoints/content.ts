@@ -4,7 +4,7 @@ import { dismissAlert, showAlert } from "../utils/alerts";
 import { type GenerateAliasResponse, initQuickCreate } from "../utils/quick-create";
 
 export default defineContentScript({
-    matches: ["<all_urls>"],
+    matches: ["https://*/*"],
     main() {
         initQuickCreate({
             // The background worker creates the alias for this frame's hostname.
