@@ -1,0 +1,59 @@
+name: Deploy web
+
+# The web app (app.mailflare.cc, with its Cloudflare API proxy) and the landing
+# page (mailflare.cc), as Cloudflare Pages projects. See RELEASING.md.
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - apps/web/**
+            - apps/landing/**
+            - packages/**
+            - pnpm-lock.yaml
+            - .github/workflows/deploy-web.yml
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: deploy-web
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        name: Deploy ${{ matrix.site.name }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                site:
+                    - name: web app
+                      package: "@mailflare/web"
+                      project: app
+                    - name: landing page
+                      package: "@mailflare/landing"
+                      project: landing
+        env:
+            CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            PROJECT: >-
+                ${{ matrix.site.project == 'app' && (vars.PAGES_APP_PROJECT || 'mailflare-app')
+                || (vars.PAGES_LANDING_PROJECT || 'mailflare-landing') }}
+        steps:
+            - uses: actions/checkout@v7
+
+            - uses: pnpm/action-setup@v6
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+                  cache: pnpm
+
+            - run: pnpm install --frozen-lockfile
+
+            - run: pnpm --filter "${{ matrix.site.package }}" build
+
+            # From the app's directory: wrangler also deploys its functions/ folder.
+            - run: pnpm --filter "${{ matrix.site.package }}" run deploy --project-name "$PROJECT"

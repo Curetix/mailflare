@@ -7,6 +7,7 @@
         "dev": "vite dev",
         "build": "vite build",
         "preview": "vite preview --outDir dist/client",
+        "deploy": "wrangler pages deploy dist/client --branch main",
         "check-types": "tsc --noEmit"
     },
     "dependencies": {
@@ -25,6 +26,7 @@
         "@vitejs/plugin-react": "^6.3.0",
         "@vitejs/plugin-rsc": "^0.5.39",
         "typescript": "catalog:",
-        "vite": "^8.3.8"
+        "vite": "^8.3.8",
+        "wrangler": "^4.162.0"
     }
 }

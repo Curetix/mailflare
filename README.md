@@ -67,6 +67,7 @@ match.
 
 - [Extension](apps/extension/README.md)
 - [Worker](apps/worker/README.md)
+- [Releasing](RELEASING.md): versions, the release PR, store uploads and web deploys
 
 ## License
 
