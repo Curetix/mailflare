@@ -149,6 +149,87 @@ describe("incoming mail", () => {
         await receive(incoming({ to: "keyed@long.test", from: contact }));
         expect(await reverseKeyFor(contact)).toBe(key);
     });
+
+    it("keep the short form of a long alias within the local-part limit", async () => {
+        // The API allows 64 characters, but the reverse address adds "+=" and a key.
+        const address = "z".repeat(55) + "@long.test";
+        const alias = await seedAlias(address, OWNER);
+        const contact = "long-contact@elsewhere.test";
+        await receive(incoming({ to: address, from: contact }));
+
+        // 55 characters leave 7 for the key, so the reply address is exactly 64.
+        const key = await reverseKeyFor(contact);
+        expect(key).toMatch(/^[a-z0-9]{7}$/);
+        const replyTo = address.split("@")[0] + "+=" + key + "@long.test";
+        expect(replyTo.split("@")[0]?.length).toBe(64);
+
+        const { message, sent } = await receive(
+            incoming({ to: replyTo, from: OWNER, headers: [cloudflarePass("inbox.test")] }),
+        );
+        expect(message.setReject).not.toHaveBeenCalled();
+        expect(sent).toEqual([{ from: address, to: contact }]);
+        expect((await getAlias(alias.id)).sentCount).toBe(1);
+    });
+
+    it("replace a key stored for a long alias before the limit applied", async () => {
+        const address = "y".repeat(55) + "@long.test";
+        const alias = await seedAlias(address, OWNER);
+        const contact = "old-contact@elsewhere.test";
+        // What the alias stored before the fix: a 10-character key, too long to use.
+        await env.DB.prepare(
+            "INSERT INTO reverse_contacts (key, alias_id, email, replyable, created_at) VALUES (?, ?, ?, 1, ?)",
+        )
+            .bind("abcdefghij", alias.id, contact, Math.floor(Date.now() / 1000))
+            .run();
+
+        await receive(incoming({ to: address, from: contact }));
+
+        // The next message shrinks the stored key, so the short form fits again.
+        const key = await reverseKeyFor(contact);
+        expect(key).toMatch(/^[a-z0-9]{7}$/);
+        const replyTo = address.split("@")[0] + "+=" + key + "@long.test";
+        const { sent } = await receive(
+            incoming({ to: replyTo, from: OWNER, headers: [cloudflarePass("inbox.test")] }),
+        );
+        expect(sent).toEqual([{ from: address, to: contact }]);
+    });
+
+    it("retry with a fresh key when another contact already owns it", async () => {
+        const address = "w".repeat(56) + "@long.test";
+        const alias = await seedAlias(address, OWNER);
+        // Six characters is all this alias leaves, and this key is already taken.
+        await env.DB.prepare(
+            "INSERT INTO reverse_contacts (key, alias_id, email, replyable, created_at) VALUES (?, ?, ?, 1, ?)",
+        )
+            .bind("aaaaaa", alias.id, "already@elsewhere.test", Math.floor(Date.now() / 1000))
+            .run();
+
+        // The first key generated is all "a"s, so the insert hits the taken key once.
+        const realRandom = crypto.getRandomValues.bind(crypto);
+        let first = true;
+        const spy = vi.spyOn(crypto, "getRandomValues").mockImplementation((array) => {
+            if (first) {
+                first = false;
+                if (array) (array as Uint8Array).fill(0);
+                return array;
+            }
+            return realRandom(array as Uint8Array);
+        });
+
+        const contact = "new-contact@elsewhere.test";
+        try {
+            const { message, sent } = await receive(incoming({ to: address, from: contact }));
+
+            // A duplicate key must not send the message down the forwarding fallback.
+            expect(message.forward).not.toHaveBeenCalled();
+            expect(sent).toEqual([{ from: address, to: OWNER }]);
+        } finally {
+            spy.mockRestore();
+        }
+        const key = await reverseKeyFor(contact);
+        expect(key).toMatch(/^[a-z0-9]{6}$/);
+        expect(key).not.toBe("aaaaaa");
+    });
 });
 
 describe("mail loops", () => {
