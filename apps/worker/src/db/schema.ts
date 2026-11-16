@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
     index,
     integer,
@@ -49,7 +50,14 @@ export const destinations = sqliteTable(
     },
     (t) => [
         uniqueIndex("destinations_user_email").on(t.userId, t.email),
+        // NULLs are distinct in the index above, so the token's own rows need their own.
+        uniqueIndex("destinations_token_email")
+            .on(t.email)
+            .where(sql`${t.userId} IS NULL`),
         index("destinations_email").on(t.email),
+        index("destinations_verification_hash")
+            .on(t.verificationHash)
+            .where(sql`${t.verificationHash} IS NOT NULL`),
     ],
 );
 
@@ -78,8 +86,21 @@ export const aliases = sqliteTable(
     (t) => [
         index("aliases_domain_created").on(t.domainId, t.createdAt),
         index("aliases_user_created").on(t.userId, t.createdAt),
+        index("aliases_destination").on(t.destinationId),
     ],
 );
+
+/**
+ * Addresses of deleted aliases. Only their previous owner (or an admin) may
+ * create them again, so nobody receives mail meant for someone else, such as
+ * password resets of accounts the old owner signed up for with the alias.
+ */
+export const retiredAddresses = sqliteTable("retired_addresses", {
+    address: text("address").primaryKey(),
+    /** The previous owner; null for the admin token. Not a foreign key: it outlives the account. */
+    userId: text("user_id"),
+    createdAt: createdAt(),
+});
 
 /**
  * Contacts of an alias: everyone who mailed it or was a recipient alongside
@@ -96,9 +117,50 @@ export const reverseContacts = sqliteTable(
             .notNull()
             .references(() => aliases.id, { onDelete: "cascade" }),
         email: text("email").notNull(),
+        /**
+         * Whether accounts may send to this contact from the alias: the
+         * authenticated sender of mail to it, not others in To or Cc.
+         */
+        replyable: integer("replyable", { mode: "boolean" }).notNull().default(true),
         createdAt: createdAt(),
     },
     (t) => [uniqueIndex("reverse_contacts_alias_email").on(t.aliasId, t.email)],
+);
+
+/**
+ * Message-IDs of mail the owner sent from an alias. Outgoing mail gets a new
+ * ID on the alias's domain (the original usually names the owner's mail
+ * domain); replies are translated back, so both sides keep their threads.
+ */
+export const messageIds = sqliteTable(
+    "message_ids",
+    {
+        /** The ID the contact sees, with angle brackets. */
+        id: text("id").primaryKey(),
+        aliasId: text("alias_id")
+            .notNull()
+            .references(() => aliases.id, { onDelete: "cascade" }),
+        /** The ID the owner's mail client gave the message, with angle brackets. */
+        original: text("original").notNull(),
+        createdAt: createdAt(),
+    },
+    (t) => [index("message_ids_alias_original").on(t.aliasId, t.original)],
+);
+
+/** Verification emails sent for destinations, to limit them per account and inbox. */
+export const verificationMails = sqliteTable(
+    "verification_mails",
+    {
+        id: id(),
+        /** The account that asked; null for the admin token. */
+        userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+        email: text("email").notNull(),
+        createdAt: createdAt(),
+    },
+    (t) => [
+        index("verification_mails_user").on(t.userId, t.createdAt),
+        index("verification_mails_email").on(t.email, t.createdAt),
+    ],
 );
 
 /** Messages each account sent from its aliases, per UTC day (for the daily limit). */

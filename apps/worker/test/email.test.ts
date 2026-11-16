@@ -8,6 +8,7 @@ import {
     handleEmail,
     LOOP_REASON,
     MAX_ALIAS_HOPS,
+    MAX_CONTACTS_PER_MESSAGE,
     REJECT_REASON,
 } from "../src/email";
 import { api, seedAlias } from "./helpers";
@@ -222,7 +223,7 @@ describe("sending from an alias", () => {
         expect(sent).toEqual([{ from: "short@out.test", to: contact }]);
     });
 
-    it("refuses mail that claims to be from the owner without Cloudflare's DMARC pass", async () => {
+    it("doesn't send mail claiming to be from the owner without Cloudflare's DMARC pass", async () => {
         await seedAlias("guard@out.test", OWNER);
         const attempts = [
             [], // No authentication results at all.
@@ -236,12 +237,27 @@ describe("sending from an alias", () => {
             const { message, sent } = await receive(
                 incoming({ to: "guard+victim=target.test@out.test", from: OWNER, headers }),
             );
-            expect(sent).toEqual([]);
-            expect(message.forward).not.toHaveBeenCalled();
-            expect(message.setReject).toHaveBeenCalledWith(
-                "Could not verify that this message comes from the alias owner",
-            );
+            // Handled like anyone's mail to the alias: a distinct answer would
+            // tell whoever guessed the owner's address that the guess is right.
+            expect(sent).toEqual([{ from: "guard@out.test", to: OWNER }]);
+            expect(message.setReject).not.toHaveBeenCalled();
         }
+    });
+
+    it("gives sent mail a Message-ID of the alias's domain, remembering the owner's", async () => {
+        const alias = await seedAlias("thread@out.test", OWNER);
+        await receive(
+            incoming({
+                to: "thread+bob=shop.test@out.test",
+                from: OWNER,
+                headers: [cloudflarePass("inbox.test")],
+            }),
+        );
+        const row = await env.DB.prepare("SELECT id, original FROM message_ids WHERE alias_id = ?")
+            .bind(alias.id)
+            .first<{ id: string; original: string }>();
+        expect(row?.original).toBe("<1@test>");
+        expect(row?.id).toMatch(/^<[a-z0-9]+@out\.test>$/);
     });
 
     it("treats anyone else writing to a reverse address as mail for the alias", async () => {
@@ -309,25 +325,51 @@ describe("aliases of accounts", () => {
             "You can only reply to people who have emailed this alias",
         );
 
-        // Once they have written (Cc'd people count too), replies go out.
+        // Once they have written, replies go out; not to others in Cc, or
+        // anyone could make an address a contact.
         await receive(
             incoming({
                 to: "ann@shared.test",
                 from: "Stranger@Target.test",
-                headers: ["Cc: friend@target.test"],
+                headers: [cloudflarePass("target.test"), "Cc: friend@elsewhere.test"],
             }),
         );
-        for (const contact of ["stranger=target.test", "friend=target.test"]) {
-            const reply = await receive(fromOwner(owner, `ann+${contact}@shared.test`));
-            expect(reply.message.setReject).not.toHaveBeenCalled();
-            expect(reply.sent).toHaveLength(1);
-        }
+        const reply = await receive(fromOwner(owner, "ann+stranger=target.test@shared.test"));
+        expect(reply.message.setReject).not.toHaveBeenCalled();
+        expect(reply.sent).toHaveLength(1);
+        const cc = await receive(fromOwner(owner, "ann+friend=elsewhere.test@shared.test"));
+        expect(cc.sent).toEqual([]);
+    });
+
+    it("don't count senders Cloudflare couldn't authenticate as contacts", async () => {
+        const owner = "dan@acct.test";
+        await seedAccountAlias("dan@shared.test", owner);
+        // A forged From (no DMARC or aligned SPF pass), and the owner mailing
+        // their own alias with a stranger as the sender.
+        await receive(incoming({ to: "dan@shared.test", from: "victim@target.test" }));
+        await receive(
+            incoming({
+                to: "dan@shared.test",
+                from: "victim@target.test",
+                headers: [
+                    "Authentication-Results: mx.cloudflare.net; spf=pass smtp.mailfrom=me@throwaway.test; dmarc=none",
+                ],
+            }),
+        );
+        const { sent } = await receive(fromOwner(owner, "dan+victim=target.test@shared.test"));
+        expect(sent).toEqual([]);
     });
 
     it("stop at the daily sending limit", async () => {
         const owner = "ben@acct.test";
         await seedAccountAlias("ben@shared.test", owner);
-        await receive(incoming({ to: "ben@shared.test", from: "pal@target.test" }));
+        await receive(
+            incoming({
+                to: "ben@shared.test",
+                from: "pal@target.test",
+                headers: [cloudflarePass("target.test")],
+            }),
+        );
         const results = [];
         for (let i = 0; i < 3; i += 1) {
             results.push(await receive(fromOwner(owner, "ben+pal=target.test@shared.test")));
@@ -360,5 +402,29 @@ describe("aliases of accounts", () => {
             expect(message.forward).not.toHaveBeenCalled();
             expect(message.setReject).toHaveBeenCalledWith(REJECT_REASON);
         }
+    });
+});
+
+describe("incoming mail, defensively", () => {
+    it("forwards mail without a sender (bounces) instead of re-sending it from the alias", async () => {
+        await seedAlias("bounce@out.test", OWNER);
+        const { message, sent } = await receive(incoming({ to: "bounce@out.test", from: "" }));
+        expect(sent).toEqual([]);
+        expect(message.forward).toHaveBeenCalledOnce();
+    });
+
+    it(`gives at most ${MAX_CONTACTS_PER_MESSAGE} addresses of a message reverse addresses`, async () => {
+        const alias = await seedAlias("crowd@out.test", OWNER);
+        const cc = Array.from({ length: 80 }, (_, i) => `p${i}@many.test`).join(", ");
+        const { sent } = await receive(
+            incoming({ to: "crowd@out.test", from: "host@many.test", headers: [`Cc: ${cc}`] }),
+        );
+        expect(sent).toHaveLength(1);
+        const row = await env.DB.prepare(
+            "SELECT count(*) AS n FROM reverse_contacts WHERE alias_id = ?",
+        )
+            .bind(alias.id)
+            .first<{ n: number }>();
+        expect(row?.n).toBe(MAX_CONTACTS_PER_MESSAGE);
     });
 });
