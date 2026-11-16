@@ -184,6 +184,7 @@
             "description": "Clear all data and settings",
             "action": "Logout",
             "success": "Goodbye",
+            "failed": "Couldn't reach the Worker to sign you out. Try again when you're online.",
             "dialog": {
                 "title": "Logout",
                 "description": "Do you want to log out? All local data will be deleted, but your aliases will of course keep working."
@@ -321,6 +322,13 @@
             "submit": "Save password",
             "success": "Password changed. Sign in with it now."
         },
+        "verify_email": {
+            "title": "Confirm your email",
+            "description": "Someone created a Mailflare account with this email address. Only confirm if that was you just now: whoever created it can then sign in to it.",
+            "submit": "Confirm and sign in",
+            "success": "Email confirmed. Your account is ready.",
+            "home": "Open Mailflare"
+        },
         "verify_destination": {
             "title": "Confirm this inbox",
             "description": "Someone added this inbox to their Mailflare account, so their aliases can forward mail to it. Only confirm if that was you.",
@@ -341,6 +349,7 @@
             "deny": "Cancel",
             "sign_in_first": "Sign in to connect the Mailflare extension.",
             "invalid": "This connection request is invalid. Start again from the extension.",
+            "unknown_app": "This Worker doesn't allow this extension to connect. Its admin can allow development builds with the EXTENSION_IDS setting.",
             "admin_token": "You're signed in with the admin token. Enter it in the extension instead, or log out here and sign in with an account."
         },
         "page": {
@@ -353,7 +362,7 @@
             "current_password": "Current password",
             "new_password": "New password",
             "change_password": "Change password",
-            "password_changed": "Password changed",
+            "password_changed": "Password changed. Your other devices were signed out.",
             "no_password": "You sign in with links and passkeys. To use a password too, set one with a link we email you.",
             "set_password": "Email me a link",
             "set_password_sent": "Sent a link to {email}",

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "use-intl";
 
 import { signOutAccount } from "../account/account-client";
+import { useCloudflareConfig } from "../api/config-context";
 import { useStorage } from "../storage/context";
 import { StorageKeys } from "../storage/storage";
 import { useAuthStore } from "../stores/auth-store";
@@ -22,12 +23,24 @@ export function LogoutDialog({ open, onClose, onLoggedOut }: Props) {
     const queryClient = useQueryClient();
     const logout = useAuthStore((s) => s.logout);
     const storageAdapter = useStorage();
+    const { lockedWorkerUrl } = useCloudflareConfig();
 
     async function handleLogout() {
-        // End an account session on the Worker too, so its token stops working
-        // (and a Worker-served app doesn't sign back in with the cookie).
+        // End an account session on the Worker too, so its token stops working.
         const { apiToken, workerUrl } = useAuthStore.getState();
-        if (apiToken && workerUrl) await signOutAccount(workerUrl, apiToken);
+        if (apiToken && workerUrl) {
+            try {
+                await signOutAccount(workerUrl, apiToken);
+            } catch {
+                // The Worker's own app would sign back in with the session's
+                // cookie, so it can only log out once the Worker confirms.
+                if (lockedWorkerUrl) {
+                    toast({ body: t("failed"), type: "error" });
+                    onClose();
+                    return;
+                }
+            }
+        }
         logout();
         await queryClient.invalidateQueries();
         await storageAdapter.remove(StorageKeys.QueryCache);

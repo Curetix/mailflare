@@ -111,10 +111,18 @@ function PasswordSection({ client, email }: { client: AccountClient; email: stri
         event.preventDefault();
         if (!current || next.length < MIN_PASSWORD_LENGTH) return;
         setBusy(true);
-        const changed = await run(
-            () => unwrap(client.changePassword({ currentPassword: current, newPassword: next })),
-            t("page.password_changed"),
-        );
+        // Signs out every other device, in case someone else got into the
+        // account; this one continues with the new session it gets back.
+        const changed = await run(async () => {
+            const { data } = await unwrap(
+                client.changePassword({
+                    currentPassword: current,
+                    newPassword: next,
+                    revokeOtherSessions: true,
+                }),
+            );
+            if (data?.token) useAuthStore.getState().replaceToken(data.token);
+        }, t("page.password_changed"));
         if (changed) {
             setCurrent("");
             setNext("");

@@ -24,6 +24,7 @@ import {
     sendDestinationVerification,
     verifyDestination,
 } from "../destinations";
+import { isExtensionRedirect } from "../extensions";
 import { getSettings } from "../settings";
 import type * as Api from "./types";
 import { API_VERSION } from "./types";
@@ -31,7 +32,12 @@ import { API_VERSION } from "./types";
 /** Who is calling: the deployment's admin token, or an account. */
 type Principal =
     | { kind: "token" }
-    | { kind: "user"; user: SessionUser; sessionToken: string; auth: Auth };
+    | {
+          kind: "user";
+          user: SessionUser;
+          session: { token: string; createdAt: Date };
+          auth: Auth;
+      };
 
 type AppEnv = { Bindings: Env; Variables: { db: Db; principal: Principal } };
 
@@ -196,7 +202,10 @@ v1.use(async (c, next) => {
     if (token && c.env.ADMIN_TOKEN && (await tokensMatch(token, c.env.ADMIN_TOKEN))) {
         principal = { kind: "token" };
     } else if (auth) {
-        const session = await auth.api.getSession({ headers: c.req.raw.headers });
+        // Bearer tokens only: the session cookie of the Worker's own app is
+        // exchanged for a token through /api/auth, never accepted here.
+        const headers = new Headers(header ? { Authorization: header } : undefined);
+        const session = await auth.api.getSession({ headers });
         if (session?.user.banned) {
             throw new ApiException(403, "banned", "This account is suspended");
         }
@@ -204,7 +213,7 @@ v1.use(async (c, next) => {
             principal = {
                 kind: "user",
                 user: session.user,
-                sessionToken: session.session.token,
+                session: session.session,
                 auth,
             };
         }
@@ -234,16 +243,27 @@ const APP_SESSION_AGENT = "Mailflare extension";
 // Sessions: the Worker's app hands other apps (the extension) a session of
 // their own, so signing out of one doesn't sign out the other.
 
-v1.post("/sessions", async (c) => {
+v1.post("/sessions", json(z.object({ redirectUri: z.string() })), async (c) => {
     const { principal } = c.var;
     if (principal.kind !== "user") {
         throw new ApiException(400, "not_an_account", "Only accounts can authorize apps");
     }
+    // Only the extensions this Worker knows get a session, at their own
+    // identity.launchWebAuthFlow redirect.
+    const { redirectUri } = c.req.valid("json");
+    if (!(await isExtensionRedirect(redirectUri, getSettings(c.env).extensionIds))) {
+        throw new ApiException(400, "unknown_app", "This app may not use accounts of this Worker");
+    }
     const context = await principal.auth.$context;
     // Named, so the account's list of signed-in devices can tell it apart.
-    const session = await context.internalAdapter.createSession(principal.user.id, false, {
-        userAgent: APP_SESSION_AGENT,
-    });
+    // As old as the session it comes from: minting one never makes a
+    // session fresh enough for what needs a recent sign-in.
+    const session = await context.internalAdapter.createSession(
+        principal.user.id,
+        false,
+        { userAgent: APP_SESSION_AGENT, createdAt: principal.session.createdAt },
+        true,
+    );
     return c.json<Api.NewSession>({ token: session.token }, 201);
 });
 
@@ -252,7 +272,7 @@ v1.delete("/session", async (c) => {
     const { principal } = c.var;
     if (principal.kind === "user") {
         const context = await principal.auth.$context;
-        await context.internalAdapter.deleteSession(principal.sessionToken);
+        await context.internalAdapter.deleteSession(principal.session.token);
     }
     return c.body(null, 204);
 });
@@ -580,6 +600,10 @@ app.get("/api/info", (c) =>
 );
 
 app.on(["GET", "POST"], `${AUTH_BASE_PATH}/*`, (c) => {
+    // The admin plugin's own endpoints (impersonating accounts, setting their
+    // passwords) would let admins into accounts' data, which /api/v1 keeps
+    // from them. Admins manage accounts through /api/v1/users.
+    if (c.req.path.startsWith(`${AUTH_BASE_PATH}/admin/`)) throw notFound("Endpoint");
     const auth = createAuth(c.env, c.executionCtx, originOf(c));
     if (!auth) {
         throw new ApiException(503, "not_configured", "Set the AUTH_SECRET secret for accounts");

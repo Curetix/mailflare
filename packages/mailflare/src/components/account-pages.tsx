@@ -9,17 +9,21 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
 import { useQuery } from "@tanstack/react-query";
+import { isHTTPError } from "ky";
 import { type FormEvent, useState } from "react";
 import { useTranslations } from "use-intl";
 
 import {
     createAccountClient,
     createAppSession,
+    sessionFromCookie,
     unwrap,
+    verifyAccountEmail,
     verifyDestination,
 } from "../account/account-client";
 import { useAccountErrorMessage } from "../account/use-account-error";
 import { WorkerBackend } from "../backend/worker-backend";
+import { useConnect } from "./login";
 
 type PageProps = { url: string; token: string; onDone: () => void };
 
@@ -126,7 +130,64 @@ export function VerifyDestinationPage({ url, token, onDone }: PageProps) {
     );
 }
 
-/** Where browsers send extensions' `identity.launchWebAuthFlow` results. */
+/**
+ * Opened from an account's verification email (`/verify-email?token=`).
+ * Confirming takes a click, so a link scanner can't verify an account that
+ * someone else signed up with this address. Signs in afterwards.
+ */
+export function VerifyEmailPage({ url, token, onDone }: PageProps) {
+    const t = useTranslations("account");
+    const errorMessage = useAccountErrorMessage();
+    const connect = useConnect();
+    const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+    const [error, setError] = useState<string | null>(null);
+
+    async function confirm() {
+        setState("busy");
+        setError(null);
+        try {
+            await verifyAccountEmail(url, token);
+        } catch (failure) {
+            setError(errorMessage(failure));
+            setState("idle");
+            return;
+        }
+        // Verifying leaves a cookie session; the app works with its token.
+        const session = await sessionFromCookie(url).catch(() => null);
+        if (session)
+            await connect.mutateAsync({ kind: "worker", url, token: session }).catch(() => {});
+        setState("done");
+    }
+
+    return (
+        <VStack gap={3}>
+            <Heading level={2}>{t("verify_email.title")}</Heading>
+            {state === "done" ? (
+                <>
+                    <Banner status="success" title={t("verify_email.success")} />
+                    <Button label={t("verify_email.home")} onClick={onDone} />
+                </>
+            ) : (
+                <>
+                    <Text>{t("verify_email.description")}</Text>
+                    {error && <Banner status="error" title={error} />}
+                    <Button
+                        variant="primary"
+                        width="100%"
+                        label={t("verify_email.submit")}
+                        isLoading={state === "busy"}
+                        clickAction={confirm}
+                    />
+                </>
+            )}
+        </VStack>
+    );
+}
+
+/**
+ * The shape of extensions' `identity.launchWebAuthFlow` redirects; which
+ * extensions may connect, the Worker decides.
+ */
 const EXTENSION_REDIRECT =
     /^https:\/\/([a-p]{32}\.chromiumapp\.org|[0-9a-f]{40}\.extensions\.allizom\.org)\/[^#]*$/;
 
@@ -162,10 +223,11 @@ export function AuthorizePage({
         setBusy(true);
         setError(null);
         try {
-            const token = await createAppSession(url, apiToken);
+            const token = await createAppSession(url, apiToken, redirectUri);
             finish(`token=${encodeURIComponent(token)}`);
         } catch (failure) {
-            setError(errorMessage(failure));
+            const unknownApp = isHTTPError(failure) && failure.response.status === 400;
+            setError(unknownApp ? t("authorize.unknown_app") : errorMessage(failure));
             setBusy(false);
         }
     }
