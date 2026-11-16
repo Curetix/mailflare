@@ -13,6 +13,11 @@ on:
             tag:
                 description: Release tag to build and send to the stores again, e.g. v2.0.0
                 required: true
+            stores:
+                description: Stores to send it to (one that already has this version refuses it)
+                type: choice
+                options: [both, chrome, firefox]
+                default: both
             dry-run:
                 description: Only check the store credentials
                 type: boolean
@@ -47,7 +52,11 @@ jobs:
             contents: write
         env:
             TAG: ${{ needs.release-please.outputs.tag || inputs.tag }}
+            STORES: ${{ inputs.stores || 'both' }}
             DRY_RUN: ${{ inputs.dry-run && 'true' || 'false' }}
+            FIREFOX_EXTENSION_ID: ${{ vars.FIREFOX_EXTENSION_ID || '{f0bdc9fa-a062-4424-baee-16530c53aa06}' }}
+            # unlisted: signed by Mozilla, distributed through the GitHub release.
+            FIREFOX_CHANNEL: ${{ vars.FIREFOX_CHANNEL || 'unlisted' }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -79,23 +88,31 @@ jobs:
               working-directory: apps/extension
               env:
                   CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID || 'aomfbgcabccoecaoimicmmkjdmdgcfpi' }}
-                  # Chrome Web Store API v2: a service account of the publisher.
-                  CHROME_API_VERSION: ${{ vars.CHROME_API_VERSION || 'v2' }}
+                  # Chrome Web Store API v2 (v1.1 was shut down): a service account of the publisher.
+                  CHROME_API_VERSION: v2
                   CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
                   CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
                   CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
-                  # API v1.1 (deprecated): an OAuth client.
-                  CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-                  CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
-                  CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
-                  FIREFOX_EXTENSION_ID: ${{ vars.FIREFOX_EXTENSION_ID || '{f0bdc9fa-a062-4424-baee-16530c53aa06}' }}
                   FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
                   FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
-                  FIREFOX_CHANNEL: ${{ vars.FIREFOX_CHANNEL || 'listed' }}
               run: |
                   args=()
                   if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
-                  pnpm wxt submit "${args[@]}" \
-                      --chrome-zip .output/*-chrome.zip \
-                      --firefox-zip .output/*-firefox.zip \
-                      --firefox-sources-zip .output/*-sources.zip
+                  if [ "$STORES" != firefox ]; then args+=(--chrome-zip .output/*-chrome.zip); fi
+                  if [ "$STORES" != chrome ]; then
+                      args+=(--firefox-zip .output/*-firefox.zip --firefox-sources-zip .output/*-sources.zip)
+                  fi
+                  pnpm wxt submit "${args[@]}"
+
+            - name: Attach the signed Firefox add-on (unlisted channel)
+              if: >-
+                  env.DRY_RUN != 'true' && env.STORES != 'chrome' &&
+                  env.FIREFOX_CHANNEL == 'unlisted'
+              working-directory: apps/extension
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+                  FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+              run: |
+                  node scripts/fetch-signed-xpi.mjs "${TAG#v}"
+                  gh release upload "$TAG" .output/*.xpi --clobber
