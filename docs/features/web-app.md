@@ -17,9 +17,9 @@ a web browser.
 
 ## Layout
 
-On phones, the app looks like the extension: the list on top, tabs at the bottom. On large screens
-it has a sidebar with your domains and pages, and on very wide screens the selected alias opens
-next to the list.
+On phones, the app looks like the extension: the list on top, tabs at the bottom. From 1024 pixels
+wide it has a sidebar with your domains and pages, and from 1280 pixels the selected alias opens
+next to the list, with the Worker's statistics for it.
 
 ## API Proxy
 

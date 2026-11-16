@@ -89,8 +89,8 @@ The extension and other copies of the web app connect too: on the sign-in screen
 managed in the Worker's own app; **Settings** → **Domains, inboxes and account** opens it.
 
 Creating, editing and deleting aliases then works the same as in the default mode, including the
-quick-create button and the context menu. In the web app on a large screen, selecting an alias
-opens it next to the list, with what it handled: mail forwarded, blocked and sent, and when the
+quick-create button and the context menu. In the web app in a window at least 1280 pixels wide,
+selecting an alias opens it next to the list, with what it handled: mail forwarded, blocked and sent, and when the
 last one arrived.
 
 ## 5. Accounts (optional)

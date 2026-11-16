@@ -46,7 +46,8 @@ Click **+** (or **Create alias** on large screens) to open the create dialog. Yo
 Click the edit icon on an alias to change its description, its destination, or whether it's
 enabled.
 
-In the web app on a large screen, clicking an alias opens it next to the list instead, where you
+In the web app in a window at least 1280 pixels wide, clicking an alias opens it next to the list
+instead, where you
 can edit and delete it. With a [Mailflare Worker](../guides/worker-mode.md), this also shows what
 the alias handled: mail forwarded, blocked and sent, and when the last mail arrived.
 

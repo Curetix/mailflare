@@ -6,18 +6,23 @@ derives it from the [Conventional Commits](https://www.conventionalcommits.org) 
 
 ## How a release happens
 
-1. Commits land on `main`. `feat:` makes the next release a minor one, `fix:` and `perf:` a patch,
-   and `feat!:` (or a `BREAKING CHANGE:` footer) a major one. `docs:`, `chore:`, `build:`, `ci:`,
-   `refactor:`, `test:` and `style:` don't trigger a release and stay out of the changelog. Neither
-   do commits that only touch `apps/landing`, `docs` or `.github`.
+1. Commits land on `main`. `feat:` makes the next release a minor one; `fix:`, `perf:`, `revert:`
+   and `deps:` a patch; `feat!:` (or a `BREAKING CHANGE:` footer) a major one. `docs:`, `chore:`,
+   `build:`, `ci:`, `refactor:`, `test:` and `style:` don't trigger a release and stay out of the
+   changelog. Neither do commits that only touch `apps/landing`, `docs` or `.github`.
 2. The **Release** workflow keeps a release PR open with the next version in every `package.json`
    that carries it and the new `CHANGELOG.md` section. Edit the PR to adjust the notes.
 3. Merging the PR tags `vX.Y.Z` and creates the GitHub release with those notes. The workflow then
    builds the extension, attaches the Chrome, Firefox and sources ZIPs to the release, and submits
-   them to the Chrome Web Store and Firefox Add-ons.
+   them to the Chrome Web Store and Firefox Add-ons. On the `unlisted` Firefox channel it waits for
+   Mozilla to sign the version (usually minutes, at most 30) and attaches the signed `.xpi`, which
+   is what Firefox users install.
 
 Worker self-hosters update by pulling the release and running `pnpm run deploy` (see the
-[Worker guide](docs/guides/worker-mode.md)).
+[Worker guide](docs/guides/worker-mode.md)). It applies new database migrations before deploying
+the new code (on a first deploy, after it, once the database exists), so migrations must keep
+working with the previous release: add tables, columns with defaults and indexes; don't rename or
+drop.
 
 **The first release** is forced to `2.0.0` by `"release-as"` in `release-please-config.json`.
 Remove that line right after `v2.0.0` is out, or every later release would be `2.0.0` too.
@@ -25,12 +30,13 @@ Remove that line right after `v2.0.0` is out, or every later release would be `2
 ### Sending a release to the stores again
 
 If a store upload fails, run the **Release** workflow manually (Actions → Release → Run workflow)
-with the tag, e.g. `v2.0.0`. With **dry run** checked, it only checks the store credentials.
+with the tag, e.g. `v2.0.0`, and only the store that failed: a store that already has the version
+refuses it again. With **dry run** checked, it only checks the store credentials.
 
 ## Web app and landing page
 
-The **Deploy web** workflow builds and deploys both on every push to `main` that touches them
-(`apps/web`, `apps/landing`, `packages`, the lockfile), as Cloudflare Pages projects:
+The **Deploy web** workflow builds and deploys both after **CI** passed for a push to `main`, as
+Cloudflare Pages projects (it can also be run by hand on `main`):
 
 | Site                                         | Project (default)   | Variable to override    |
 | -------------------------------------------- | ------------------- | ----------------------- |
@@ -47,24 +53,28 @@ Repository secrets (Settings → Secrets and variables → Actions):
 | `CLOUDFLARE_ACCOUNT_ID`               | The account of the Pages projects                                      |
 | `CHROME_PUBLISHER_ID`                 | Chrome Web Store API v2: the publisher's ID                            |
 | `CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL` | Chrome Web Store API v2: a service account added to the publisher      |
-| `CHROME_SERVICE_ACCOUNT_PRIVATE_KEY`  | Its private key                                                        |
+| `CHROME_SERVICE_ACCOUNT_PRIVATE_KEY`  | Its private key, the PEM with real line breaks (not `                  |
+| ` escapes)                            |
 | `FIREFOX_JWT_ISSUER`                  | addons.mozilla.org API key ("JWT issuer")                              |
 | `FIREFOX_JWT_SECRET`                  | Its secret                                                             |
 
-`npx wxt submit init` (in `apps/extension`) walks through creating the store credentials. The old
-Chrome API v1.1 (`CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`, `CHROME_REFRESH_TOKEN`) still works
-when the variable `CHROME_API_VERSION` is set to `v1.1`.
+`npx wxt submit init` (in `apps/extension`) walks through creating the store credentials. The
+Chrome Web Store's old API v1.1 (OAuth client and refresh token) was shut down in October 2026; the
+workflow uses API v2.
 
 Repository variables, all optional:
 
-| Variable                | Default                                     |
-| ----------------------- | ------------------------------------------- |
-| `CHROME_API_VERSION`    | `v2`                                        |
-| `CHROME_EXTENSION_ID`   | `aomfbgcabccoecaoimicmmkjdmdgcfpi`          |
-| `FIREFOX_EXTENSION_ID`  | `{f0bdc9fa-a062-4424-baee-16530c53aa06}`    |
-| `FIREFOX_CHANNEL`       | `listed` (`unlisted` for self-distribution) |
-| `PAGES_APP_PROJECT`     | `mailflare-app`                             |
-| `PAGES_LANDING_PROJECT` | `mailflare-landing`                         |
+| Variable                | Default                                                   |
+| ----------------------- | --------------------------------------------------------- |
+| `CHROME_EXTENSION_ID`   | `aomfbgcabccoecaoimicmmkjdmdgcfpi`                        |
+| `FIREFOX_EXTENSION_ID`  | `{f0bdc9fa-a062-4424-baee-16530c53aa06}`                  |
+| `FIREFOX_CHANNEL`       | `unlisted` (the signed `.xpi` goes to the GitHub release) |
+| `PAGES_APP_PROJECT`     | `mailflare-app`                                           |
+| `PAGES_LANDING_PROJECT` | `mailflare-landing`                                       |
+
+The add-on is unlisted on addons.mozilla.org. Once Mozilla has made it listed, set
+`FIREFOX_CHANNEL` to `listed` and point `FIREFOX_DOWNLOAD_LINK` (`packages/mailflare/src/const.ts`)
+and the installation guide at its listing.
 
 ## One-time setup
 
