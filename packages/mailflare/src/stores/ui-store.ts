@@ -54,7 +54,8 @@ export type UIState = {
     setHostname: (hostname: string) => void;
     setAliasSearch: (search: string) => void;
     setSelectedAliases: (aliases: Alias[]) => void;
-    toggleAliasSelection: (alias: Alias) => void;
+    /** Selects or unselects an alias; repeating it changes nothing. */
+    setAliasSelected: (alias: Alias, selected: boolean) => void;
     clearSelection: () => void;
     setCreateOpen: (open: boolean) => void;
     setEditOpen: (open: boolean) => void;
@@ -126,14 +127,9 @@ export const useUIStore = create<UIState>((set, get) => ({
         persistState(get());
     },
     setSelectedAliases: (selectedAliases) => set({ selectedAliases }),
-    toggleAliasSelection: (alias) => {
-        const current = get().selectedAliases;
-        const index = current.findIndex((a) => a.id === alias.id);
-        if (index > -1) {
-            set({ selectedAliases: current.filter((_, i) => i !== index) });
-        } else {
-            set({ selectedAliases: [...current, alias] });
-        }
+    setAliasSelected: (alias, selected) => {
+        const others = get().selectedAliases.filter((a) => a.id !== alias.id);
+        set({ selectedAliases: selected ? [...others, alias] : others });
     },
     clearSelection: () => set({ selectedAliases: [] }),
     setCreateOpen: (createOpen) => {
