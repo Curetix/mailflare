@@ -11,7 +11,9 @@ derives it from the [Conventional Commits](https://www.conventionalcommits.org) 
    `build:`, `ci:`, `refactor:`, `test:` and `style:` don't trigger a release and stay out of the
    changelog. Neither do commits that only touch `apps/landing`, `docs` or `.github`.
 2. The **Release** workflow keeps a release PR open with the next version in every `package.json`
-   that carries it and the new `CHANGELOG.md` section. Edit the PR to adjust the notes.
+   that carries it and the new `CHANGELOG.md` section, rebuilt on top of `main` after every push
+   (`always-update`), so its checks run against the latest code. Edit the PR to adjust the notes,
+   right before merging it: the next push to `main` replaces them.
 3. Merging the PR tags `vX.Y.Z` and creates the GitHub release with those notes. The workflow then
    builds the extension, attaches the Chrome, Firefox and sources ZIPs to the release, and submits
    them to the Chrome Web Store and Firefox Add-ons. On the `unlisted` Firefox channel it waits for
