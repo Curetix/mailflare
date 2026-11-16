@@ -1,6 +1,7 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
+import { memo } from "react";
 import { useTranslations } from "use-intl";
 
 import type { Alias } from "../backend/types";
@@ -13,7 +14,8 @@ type Props = {
     alias: Alias | null;
 };
 
-export function AliasEditDialog({ open, onClose, alias }: Props) {
+// Memoized: the alias list re-renders often (selection, scrolling) while this stays closed.
+export const AliasEditDialog = memo(function AliasEditDialog({ open, onClose, alias }: Props) {
     const t = useTranslations("alias_edit");
     const tc = useTranslations("common");
     const { isOnline } = useOnlineStatus();
@@ -56,4 +58,4 @@ export function AliasEditDialog({ open, onClose, alias }: Props) {
             </form>
         </Dialog>
     );
-}
+});

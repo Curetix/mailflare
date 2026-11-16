@@ -6,6 +6,7 @@ import { IconButton } from "@astryxdesign/core/IconButton";
 import { Text } from "@astryxdesign/core/Text";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
+import { memo } from "react";
 import { TbClipboardCopy, TbEdit, TbTrash } from "react-icons/tb";
 import { useTranslations } from "use-intl";
 
@@ -33,16 +34,17 @@ type AliasCardProps = {
     alias: Alias;
     selectEnabled?: boolean;
     isSelected?: boolean;
-    onSelect: (value: boolean) => void;
-    onEdit: () => void;
-    onDelete: () => void;
+    // Stable callbacks taking the alias, so unchanged cards don't re-render.
+    onSelect: (alias: Alias, selected: boolean) => void;
+    onEdit: (alias: Alias) => void;
+    onDelete: (alias: Alias) => void;
     /** Wide screens: clicking the card opens it in the detail pane. */
-    onOpen?: () => void;
+    onOpen?: (alias: Alias) => void;
     /** The alias shown in the detail pane. */
     isOpen?: boolean;
 };
 
-export function AliasCard({
+export const AliasCard = memo(function AliasCard({
     alias,
     selectEnabled,
     isSelected,
@@ -66,7 +68,9 @@ export function AliasCard({
         <Card
             padding={2}
             variant={isSelected || isOpen ? "orange" : "default"}
-            onClick={selectEnabled ? () => onSelect(!isSelected) : onOpen}
+            onClick={
+                selectEnabled ? () => onSelect(alias, !isSelected) : onOpen && (() => onOpen(alias))
+            }
             style={selectEnabled || onOpen ? { cursor: "pointer" } : undefined}
         >
             <HStack gap={2} align="center">
@@ -76,7 +80,7 @@ export function AliasCard({
                         label={alias.address}
                         isLabelHidden
                         value={!!isSelected}
-                        onChange={(checked) => onSelect(checked)}
+                        onChange={(checked) => onSelect(alias, checked)}
                     />
                 )}
 
@@ -111,7 +115,7 @@ export function AliasCard({
                                 isDisabled={selectEnabled}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onEdit();
+                                    onEdit(alias);
                                 }}
                             />
                         )}
@@ -124,7 +128,7 @@ export function AliasCard({
                             isDisabled={selectEnabled}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onDelete();
+                                onDelete(alias);
                             }}
                         />
                     </HStack>
@@ -133,4 +137,4 @@ export function AliasCard({
             </HStack>
         </Card>
     );
-}
+});

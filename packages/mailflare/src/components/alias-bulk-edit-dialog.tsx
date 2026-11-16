@@ -4,7 +4,7 @@ import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { Selector } from "@astryxdesign/core/Selector";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { useTranslations } from "use-intl";
 
 import type { Alias } from "../backend/types";
@@ -21,7 +21,12 @@ type Props = {
     selectedAliases: Alias[];
 };
 
-export function AliasBulkEditDialog({ open, onClose, selectedAliases }: Props) {
+// Memoized: the alias list re-renders often (selection, scrolling) while this stays closed.
+export const AliasBulkEditDialog = memo(function AliasBulkEditDialog({
+    open,
+    onClose,
+    selectedAliases,
+}: Props) {
     const t = useTranslations("alias_bulk_edit");
     const tf = useTranslations("alias_create");
     const tc = useTranslations("common");
@@ -122,4 +127,4 @@ export function AliasBulkEditDialog({ open, onClose, selectedAliases }: Props) {
             </Layout>
         </Dialog>
     );
-}
+});

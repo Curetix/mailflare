@@ -9,7 +9,7 @@ import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     TbEdit,
     TbListCheck,
@@ -25,7 +25,7 @@ import { useLocation } from "wouter";
 
 import { useCloudflareConfig } from "../api/config-context";
 import type { Alias } from "../backend/types";
-import { useMailflare } from "../backend/use-mailflare";
+import { ALL_ZONES, useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
 import { useAuthStore } from "../stores/auth-store";
 import { useSettingsStore } from "../stores/settings-store";
@@ -38,6 +38,7 @@ import { AliasCreateDialog } from "./alias-create-dialog";
 import { AliasDeleteDialog } from "./alias-delete-dialog";
 import { AliasEditDialog } from "./alias-edit-dialog";
 import { PATHS } from "./navigation";
+import { VirtualRows } from "./virtual-rows";
 
 type AliasListProps = {
     /** Wide screens: domains are in the sidebar, not in a selector here. */
@@ -89,18 +90,21 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
     const scrollPosition = useUIStore((s) => s.scrollPosition);
     const setScrollPosition = useUIStore((s) => s.setScrollPosition);
 
-    const scrollRef = useRef<HTMLDivElement>(null);
-
     const [filteredAliases, setFilteredAliases] = useState<Alias[]>([]);
 
-    // Select the first zone once zones are known and none (or one that is gone) is selected.
+    // Once the zones are known (not the empty list shown while they load): keep
+    // the stored choice if it still exists, otherwise all domains, or the only one.
+    const zonesLoaded = zones.isSuccess && !zones.isPlaceholderData;
     useEffect(() => {
-        if (!zones.isSuccess) return;
-        if (selectedZoneId !== null && zones.data.some((zone) => zone.id === selectedZoneId)) {
-            return;
-        }
-        setSelectedZoneId(zones.data[0]?.id ?? null);
-    }, [zones.isSuccess, zones.data, selectedZoneId, setSelectedZoneId]);
+        if (!zonesLoaded) return;
+        const ids = zones.data.map((zone) => zone.id);
+        const valid =
+            selectedZoneId === ALL_ZONES
+                ? ids.length > 1
+                : selectedZoneId !== null && ids.includes(selectedZoneId);
+        if (valid) return;
+        setSelectedZoneId(ids.length > 1 ? ALL_ZONES : (ids[0] ?? null));
+    }, [zonesLoaded, zones.data, selectedZoneId, setSelectedZoneId]);
 
     // Cached aliases stay listed when a refresh fails (e.g. offline).
     useEffect(() => {
@@ -127,66 +131,97 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
     const aliasToEdit = filteredAliases.find((a) => a.id === aliasToEditId) ?? null;
     const aliasToDelete = filteredAliases.find((a) => a.id === aliasToDeleteId) ?? null;
 
-    // Restore scroll position after aliases load
-    useEffect(() => {
-        if (scrollRef.current && scrollPosition > 0 && filteredAliases.length > 0) {
-            scrollRef.current.scrollTop = scrollPosition;
-        }
-    }, [filteredAliases.length > 0]); // only on initial load
+    // Stable callbacks, so the (memoized) cards only re-render when their alias changes.
+    const openAlias = useRef(onOpenAlias);
+    openAlias.current = onOpenAlias;
+    const hasDetailPane = !!onOpenAlias;
+    const selectedIds = useMemo(
+        () => new Set(selectedAliases.map((alias) => alias.id)),
+        [selectedAliases],
+    );
+    const handleOpen = useCallback((alias: Alias) => openAlias.current?.(alias), []);
+    const handleEdit = useCallback(
+        (alias: Alias) => {
+            if (openAlias.current) {
+                openAlias.current(alias);
+                return;
+            }
+            setAliasToEditId(alias.id);
+            setEditOpen(true);
+        },
+        [setAliasToEditId, setEditOpen],
+    );
+    const handleDelete = useCallback(
+        (alias: Alias) => {
+            setAliasToDeleteId(alias.id);
+            setDeleteOpen(true);
+        },
+        [setAliasToDeleteId, setDeleteOpen],
+    );
 
-    const handleScroll = useCallback(() => {
-        if (scrollRef.current) {
-            setScrollPosition(scrollRef.current.scrollTop);
-        }
-    }, [setScrollPosition]);
+    // Stable, so the memoized dialogs skip re-rendering while they're closed.
+    const closeCreate = useCallback(() => setCreateOpen(false), [setCreateOpen]);
+    const closeEdit = useCallback(() => {
+        setEditOpen(false);
+        setAliasToEditId(null);
+    }, [setEditOpen, setAliasToEditId]);
+    const closeDelete = useCallback(() => {
+        setDeleteOpen(false);
+        setAliasToDeleteId(null);
+    }, [setDeleteOpen, setAliasToDeleteId]);
+    const endSelection = useCallback(() => {
+        setSelectEnabled(false);
+        clearSelection();
+    }, [setSelectEnabled, clearSelection]);
+    const closeBulkEdit = useCallback(
+        (clear?: boolean) => {
+            setEditOpen(false);
+            if (clear) endSelection();
+        },
+        [setEditOpen, endSelection],
+    );
+    const closeBulkDelete = useCallback(
+        (clear?: boolean) => {
+            setDeleteOpen(false);
+            if (clear) endSelection();
+        },
+        [setDeleteOpen, endSelection],
+    );
 
+    const showsAllZones = selectedZoneId === ALL_ZONES;
     const selectedZone = zones.data?.find((zone) => zone.id === selectedZoneId);
+    const zoneOptions = [
+        ...((zones.data?.length ?? 0) > 1 ? [{ value: ALL_ZONES, label: t("all_domains") }] : []),
+        ...(zones.data?.map((zone) => ({ value: zone.id, label: zone.name })) ?? []),
+    ];
     const noZoneSelected = !zones.data || zones.data.length === 0 || selectedZoneId === null;
     const routingNotReady = !!selectedZoneId && zoneStatus.data?.ready === false;
 
     return (
         <VStack gap={2}>
-            <AliasCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+            <AliasCreateDialog open={createOpen} onClose={closeCreate} />
 
             <AliasEditDialog
                 open={editOpen && !!aliasToEdit && selectedAliases.length === 0}
-                onClose={() => {
-                    setEditOpen(false);
-                    setAliasToEditId(null);
-                }}
+                onClose={closeEdit}
                 alias={aliasToEdit}
             />
 
             <AliasBulkEditDialog
                 open={editOpen && selectedAliases.length > 0}
-                onClose={(clear) => {
-                    setEditOpen(false);
-                    if (clear) {
-                        setSelectEnabled(false);
-                        clearSelection();
-                    }
-                }}
+                onClose={closeBulkEdit}
                 selectedAliases={selectedAliases}
             />
 
             <AliasDeleteDialog
                 open={deleteOpen && !!aliasToDelete && selectedAliases.length === 0}
-                onClose={() => {
-                    setDeleteOpen(false);
-                    setAliasToDeleteId(null);
-                }}
+                onClose={closeDelete}
                 alias={aliasToDelete}
             />
 
             <AliasBulkDeleteDialog
                 open={deleteOpen && selectedAliases.length > 0}
-                onClose={(clear) => {
-                    setDeleteOpen(false);
-                    if (clear) {
-                        setSelectEnabled(false);
-                        clearSelection();
-                    }
-                }}
+                onClose={closeBulkDelete}
                 selectedAliases={selectedAliases}
             />
 
@@ -194,7 +229,9 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
             {hideDomainSelector && (
                 <HStack gap={3} align="center" justify="between" style={{ flexWrap: "wrap" }}>
                     <HStack gap={2} align="end">
-                        <Heading level={2}>{selectedZone?.name ?? ""}</Heading>
+                        <Heading level={2}>
+                            {showsAllZones ? t("all_domains") : (selectedZone?.name ?? "")}
+                        </Heading>
                         {aliases.isSuccess && (
                             <Text type="supporting">
                                 {t("count", { count: aliases.data?.length ?? 0 })}
@@ -269,24 +306,22 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
                 </HStack>
             )}
 
-            {/* DOMAIN SELECTOR */}
+            {/* NARROW: the domain filter and the actions (creating is in the top bar) */}
             {!hideDomainSelector && (
-                <Selector
-                    label={t("domain_placeholder")}
-                    isLabelHidden
-                    width="100%"
-                    placeholder={t("domain_placeholder")}
-                    value={selectedZoneId ?? undefined}
-                    onChange={setSelectedZoneId}
-                    isLoading={zones.isFetching}
-                    isDisabled={!zones.data || zones.data.length === 0}
-                    options={zones.data?.map((z) => ({ value: z.id, label: z.name })) ?? []}
-                />
-            )}
-
-            {/* ACTION BUTTONS (narrow) */}
-            {!hideDomainSelector && (
-                <HStack gap={1}>
+                <HStack gap={1} align="center">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <Selector
+                            label={t("domain_placeholder")}
+                            isLabelHidden
+                            width="100%"
+                            placeholder={t("domain_placeholder")}
+                            value={selectedZoneId ?? undefined}
+                            onChange={setSelectedZoneId}
+                            isLoading={zones.isFetching}
+                            isDisabled={!zones.data || zones.data.length === 0}
+                            options={zoneOptions}
+                        />
+                    </div>
                     <IconButton
                         size="sm"
                         label={selectEnabled ? t("stop_select") : t("select")}
@@ -325,15 +360,6 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
                         </>
                     ) : (
                         <>
-                            <IconButton
-                                size="sm"
-                                variant="primary"
-                                label={t("create")}
-                                tooltip={t("create")}
-                                icon={<TbPlus />}
-                                isDisabled={!isOnline || noZoneSelected}
-                                onClick={() => setCreateOpen(true)}
-                            />
                             <IconButton
                                 size="sm"
                                 label={searchVisible ? t("stop_search") : t("search")}
@@ -438,40 +464,30 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
                 <Banner status="error" title={t("rules_error", { error: String(aliases.error) })} />
             )}
 
-            {/* ALIAS LIST */}
-            <div
-                ref={scrollRef}
-                onScroll={handleScroll}
-                style={{ flex: filteredAliases.length > 0 ? 1 : undefined, overflowY: "auto" }}
-            >
-                <VStack gap={2}>
-                    {aliases.data &&
-                        filteredAliases.map((alias) => (
-                            <AliasCard
-                                key={alias.id}
-                                alias={alias}
-                                selectEnabled={selectEnabled}
-                                isSelected={selectedAliases.some((a) => a.id === alias.id)}
-                                // The checkbox and the card both report it: setting, not toggling.
-                                onSelect={(selected) => setAliasSelected(alias, selected)}
-                                onEdit={() => {
-                                    if (onOpenAlias) {
-                                        onOpenAlias(alias);
-                                        return;
-                                    }
-                                    setAliasToEditId(alias.id);
-                                    setEditOpen(true);
-                                }}
-                                onOpen={onOpenAlias && (() => onOpenAlias(alias))}
-                                isOpen={alias.id === openAliasId}
-                                onDelete={() => {
-                                    setAliasToDeleteId(alias.id);
-                                    setDeleteOpen(true);
-                                }}
-                            />
-                        ))}
-                </VStack>
-            </div>
+            {/* ALIAS LIST: only the cards in view are rendered */}
+            {aliases.data && (
+                <VirtualRows
+                    items={filteredAliases}
+                    getKey={(alias) => alias.id}
+                    estimateSize={66}
+                    gap={8}
+                    initialScrollTop={scrollPosition}
+                    onScroll={setScrollPosition}
+                    renderItem={(alias) => (
+                        <AliasCard
+                            alias={alias}
+                            selectEnabled={selectEnabled}
+                            isSelected={selectedIds.has(alias.id)}
+                            // The checkbox and the card both report it: setting, not toggling.
+                            onSelect={setAliasSelected}
+                            onEdit={handleEdit}
+                            onOpen={hasDetailPane ? handleOpen : undefined}
+                            isOpen={alias.id === openAliasId}
+                            onDelete={handleDelete}
+                        />
+                    )}
+                />
+            )}
         </VStack>
     );
 }

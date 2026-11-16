@@ -48,7 +48,8 @@
         "add_domain": "Add domain",
         "no_shared_domains": "There are no domains to create aliases on yet. Ask the admin of this Worker to share one.",
         "count": "{count, plural, one {# alias} other {# aliases}}",
-        "done_select": "Done"
+        "done_select": "Done",
+        "all_domains": "All domains"
     },
     "alias_create": {
         "title": "Create Alias",
@@ -226,7 +227,6 @@
     },
     "background": {
         "error_not_logged_in": "You are not logged in to MailFlare",
-        "error_no_domain": "No domain selected in MailFlare",
         "error_no_destination": "No destination configured in MailFlare",
         "error_custom": "Cannot generate alias with custom format from background",
         "error_invalid_domain": "Selected domain is not valid",
@@ -269,7 +269,9 @@
         "imported_count": "{count, plural, one {# alias} other {# aliases}} imported successfully.",
         "skipped_count": "{count, plural, one {# alias} other {# aliases}} skipped (different domain).",
         "summary_failed": "{count, plural, one {# alias} other {# aliases}} failed to import.",
-        "start_over": "Start Over"
+        "start_over": "Start Over",
+        "only_enabled": "Only enabled aliases",
+        "only_enabled_hint": "Leave out aliases that are turned off at {service}."
     },
     "offline": {
         "banner": "You are offline. Viewing cached data. Some actions may not be available."
@@ -405,7 +407,8 @@
         "accounts": "Accounts",
         "pages": "Pages",
         "cloudflare": "Cloudflare Email Routing",
-        "tagline": "Email aliases on your own domains"
+        "tagline": "Email aliases on your own domains",
+        "import": "Import"
     },
     "alias_details": {
         "activity": "Activity",

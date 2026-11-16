@@ -1,5 +1,6 @@
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { useToast } from "@astryxdesign/core/Toast";
+import { memo } from "react";
 import { useTranslations } from "use-intl";
 
 import type { Alias } from "../backend/types";
@@ -12,7 +13,8 @@ type Props = {
     alias: Alias | null;
 };
 
-export function AliasDeleteDialog({ open, onClose, alias }: Props) {
+// Memoized: the alias list re-renders often (selection, scrolling) while this stays closed.
+export const AliasDeleteDialog = memo(function AliasDeleteDialog({ open, onClose, alias }: Props) {
     const t = useTranslations("alias_delete");
     const tc = useTranslations("common");
     const toast = useToast();
@@ -49,4 +51,4 @@ export function AliasDeleteDialog({ open, onClose, alias }: Props) {
             isActionLoading={deleteAlias.isPending}
         />
     );
-}
+});

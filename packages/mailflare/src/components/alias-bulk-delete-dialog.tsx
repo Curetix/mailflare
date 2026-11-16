@@ -1,6 +1,6 @@
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { useToast } from "@astryxdesign/core/Toast";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useTranslations } from "use-intl";
 
 import type { Alias } from "../backend/types";
@@ -15,7 +15,12 @@ type Props = {
     selectedAliases: Alias[];
 };
 
-export function AliasBulkDeleteDialog({ open, onClose, selectedAliases }: Props) {
+// Memoized: the alias list re-renders often (selection, scrolling) while this stays closed.
+export const AliasBulkDeleteDialog = memo(function AliasBulkDeleteDialog({
+    open,
+    onClose,
+    selectedAliases,
+}: Props) {
     const t = useTranslations("alias_bulk_delete");
     const td = useTranslations("alias_delete");
     const tc = useTranslations("common");
@@ -66,4 +71,4 @@ export function AliasBulkDeleteDialog({ open, onClose, selectedAliases }: Props)
             isActionLoading={isSubmitting}
         />
     );
-}
+});

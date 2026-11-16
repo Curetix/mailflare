@@ -53,6 +53,9 @@ export function connectionScope(state: { apiToken: string | null; workerUrl: str
     return `${state.workerUrl ?? "cloudflare"}#${fingerprint(state.apiToken)}`;
 }
 
+/** The domain filter's value for "all domains": aliases of every zone, in one list. */
+export const ALL_ZONES = "*";
+
 /** The first element of every key of the app's own queries (see queryKeys). */
 export const QUERY_ROOT = "mailflare";
 
@@ -88,7 +91,7 @@ function requireBackend(backend: AliasBackend | null): AliasBackend {
 }
 
 function requireZone(zoneId: string | null): string {
-    if (!zoneId) throw new Error("No zone selected");
+    if (!zoneId || zoneId === ALL_ZONES) throw new Error("No zone selected");
     return zoneId;
 }
 
@@ -140,7 +143,7 @@ export function useMailflare() {
         ...listOptions,
         queryKey: queryKeys.zoneStatus(selectedZoneId),
         queryFn: () => requireBackend(backend).getZoneStatus(requireZone(selectedZoneId)),
-        enabled: enabled && !!selectedZoneId,
+        enabled: enabled && !!selectedZoneId && selectedZoneId !== ALL_ZONES,
     });
 
     const destinations = useQuery({
@@ -159,11 +162,20 @@ export function useMailflare() {
         enabled: enabled && !!backend?.management,
     });
 
+    const allZones = selectedZoneId === ALL_ZONES;
     const aliases = useQuery({
         ...listOptions,
         queryKey: queryKeys.aliases(selectedZoneId),
-        queryFn: () => requireBackend(backend).listAliases(requireZone(selectedZoneId)),
-        enabled: enabled && !!selectedZoneId,
+        queryFn: async () => {
+            const current = requireBackend(backend);
+            if (!allZones) return current.listAliases(requireZone(selectedZoneId));
+            const lists = await Promise.all(
+                (zones.data ?? []).map((zone) => current.listAliases(zone.id)),
+            );
+            return lists.flat();
+        },
+        // "All domains" needs the zones first.
+        enabled: enabled && !!selectedZoneId && (!allZones || !!zones.data?.length),
         placeholderData: [],
     });
 

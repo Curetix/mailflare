@@ -9,7 +9,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { TbRefresh } from "react-icons/tb";
 import { useTranslations } from "use-intl";
@@ -36,7 +36,8 @@ type Props = {
 const LOCAL_PART = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/i;
 const PREFIX = /^[a-z0-9._-]{1,32}$/i;
 
-export function AliasCreateDialog({ open, onClose }: Props) {
+// Memoized: the alias list re-renders often (selection, scrolling) while this stays closed.
+export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose }: Props) {
     const t = useTranslations("alias_create");
     const tc = useTranslations("common");
     const toast = useToast();
@@ -128,7 +129,10 @@ export function AliasCreateDialog({ open, onClose }: Props) {
     useEffect(() => {
         if (open) {
             // Saved values only count while they are still among the options.
-            const zoneDomain = domains.data?.find((d) => d.zoneId === selectedZoneId)?.domain ?? "";
+            // With all domains listed, the first one.
+            const zoneDomain =
+                (domains.data?.find((d) => d.zoneId === selectedZoneId) ?? domains.data?.[0])
+                    ?.domain ?? "";
             const domainOrZone = (domain: string | undefined) =>
                 domain && domains.data?.some((d) => d.domain === domain) ? domain : zoneDomain;
             const confirmedOrFirst = (email: string | undefined) =>
@@ -540,4 +544,4 @@ export function AliasCreateDialog({ open, onClose }: Props) {
             </form>
         </Dialog>
     );
-}
+});

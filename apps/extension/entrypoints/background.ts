@@ -58,7 +58,6 @@ async function generateAliasInBackground(hostname: string): Promise<Alias> {
     const aliasSettings = storage[StorageKeys.AliasSettings] as AliasSettings | undefined;
 
     if (!apiToken) throw new Error(text("error_not_logged_in"));
-    if (!zoneId) throw new Error(text("error_no_domain"));
     if (!aliasSettings?.destination) throw new Error(text("error_no_destination"));
     if (aliasSettings.format === "custom" || aliasSettings.prefixFormat === "custom") {
         throw new Error(text("error_custom"));
@@ -69,12 +68,18 @@ async function generateAliasInBackground(hostname: string): Promise<Alias> {
             ? { kind: "worker", url: workerUrl, token: apiToken }
             : { kind: "cloudflare", token: apiToken },
     );
-    const zone = (await backend.listZones()).find((z) => z.id === zoneId);
-    if (!zone) throw new Error(text("error_invalid_domain"));
+    // The default domain saved in the create dialog; else the selected zone's
+    // (none when all domains are listed), else the first.
+    const domains = await backend.listDomains();
+    const domain =
+        domains.find((d) => d.domain === aliasSettings.domain) ??
+        domains.find((d) => d.zoneId === zoneId) ??
+        domains[0];
+    if (!domain) throw new Error(text("error_invalid_domain"));
 
     const alias = await backend.createAlias({
-        zoneId,
-        address: `${generateAliasAddress({ ...aliasSettings, hostname })}@${zone.name}`,
+        zoneId: domain.zoneId,
+        address: `${generateAliasAddress({ ...aliasSettings, hostname })}@${domain.domain}`,
         destination: aliasSettings.destination,
         description: hostname,
     });
