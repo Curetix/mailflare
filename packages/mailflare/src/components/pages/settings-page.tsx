@@ -191,17 +191,22 @@ export function SettingsPage() {
             key: "import",
             title: t("import.title"),
             description: t("import.description"),
-            hide: !apiToken || !isExtension,
+            hide: !apiToken,
             action: (
                 <Button
                     size="sm"
                     label={t("import.action")}
                     icon={<LuImport />}
                     onClick={() => {
-                        window.open(
-                            (globalThis as any).chrome.runtime.getURL("/import.html"),
-                            "_blank",
-                        );
+                        // The popup is too small, and closes when it loses focus.
+                        if (isExtension) {
+                            window.open(
+                                (globalThis as any).chrome.runtime.getURL("/import.html"),
+                                "_blank",
+                            );
+                        } else {
+                            navigate(PATHS.import);
+                        }
                     }}
                 />
             ),

@@ -28,6 +28,7 @@ import { AccountPage } from "./pages/account-page";
 import { AdminAccountsPage } from "./pages/admin-accounts-page";
 import { AdminDomainsPage } from "./pages/admin-domains-page";
 import { AliasesPage } from "./pages/aliases-page";
+import { ImportPage } from "./pages/import-page";
 import { InboxesPage } from "./pages/inboxes-page";
 import { SettingsPage } from "./pages/settings-page";
 
@@ -152,6 +153,7 @@ function AppRoutes() {
             <Switch>
                 <Route path={PATHS.aliases} component={AliasesPage} />
                 <Route path={PATHS.settings} component={SettingsPage} />
+                <Route path={PATHS.import} component={ImportPage} />
                 {workerPages}
                 <Route>
                     <Redirect to={PATHS.aliases} replace />

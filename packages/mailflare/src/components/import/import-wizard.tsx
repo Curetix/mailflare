@@ -12,13 +12,14 @@ import { Step, Stepper } from "@astryxdesign/core/Stepper";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { TbArrowLeft, TbArrowRight, TbX } from "react-icons/tb";
 import { useTranslations } from "use-intl";
 
 import type { ImportedAlias, ImportResult, ImportService } from "../../api/import";
 import { useImport } from "../../api/import";
-import { useMailflare } from "../../backend/use-mailflare";
+import { queryKeys, useMailflare } from "../../backend/use-mailflare";
 
 type Step = "service" | "preview" | "target" | "progress" | "summary";
 
@@ -30,10 +31,12 @@ const STEP_INDEX: Record<Step, number> = {
     summary: 4,
 };
 
-export function ImportWizard() {
+/** The import from addy.io or SimpleLogin; `standalone` adds its own heading and margins. */
+export function ImportWizard({ standalone = true }: { standalone?: boolean }) {
     const t = useTranslations("import");
     const tc = useTranslations("common");
-    const { backend, zones, destinations } = useMailflare();
+    const queryClient = useQueryClient();
+    const { backend, domains, destinations } = useMailflare();
     const { progress, fetchAliases, verifyServiceToken, importAliases, abort, reset } = useImport();
 
     const [step, setStep] = useState<Step>("service");
@@ -46,8 +49,11 @@ export function ImportWizard() {
     const [targetDestination, setTargetDestination] = useState("");
     const [result, setResult] = useState<ImportResult | null>(null);
 
-    const zoneDomains = new Set((zones.data ?? []).map((z) => z.name.toLowerCase()));
-    const matchingAliases = aliases.filter((a) => zoneDomains.has(a.domain.toLowerCase()));
+    // Every domain aliases can be created on, Email Routing subdomains included.
+    const domainToZoneId: Record<string, string> = {};
+    for (const d of domains.data ?? []) domainToZoneId[d.domain.toLowerCase()] = d.zoneId;
+    const importable = (alias: ImportedAlias) => alias.domain.toLowerCase() in domainToZoneId;
+    const matchingAliases = aliases.filter(importable);
     const nonMatchingCount = aliases.length - matchingAliases.length;
 
     const handleVerifyAndFetch = useCallback(async () => {
@@ -62,10 +68,7 @@ export function ImportWizard() {
             }
             const fetched = await fetchAliases(service, serviceToken);
             setAliases(fetched);
-            const zd = new Set((zones.data ?? []).map((z) => z.name.toLowerCase()));
-            setSelectedEmails(
-                new Set(fetched.filter((a) => zd.has(a.domain.toLowerCase())).map((a) => a.email)),
-            );
+            setSelectedEmails(new Set(fetched.filter(importable).map((a) => a.email)));
             setVerifying(false);
             if (fetched.length > 0) setStep("preview");
             else setTokenError(t("no_aliases_found"));
@@ -73,7 +76,7 @@ export function ImportWizard() {
             setTokenError(t("fetch_error"));
             setVerifying(false);
         }
-    }, [service, serviceToken, verifyServiceToken, fetchAliases, zones.data, t]);
+    }, [service, serviceToken, verifyServiceToken, fetchAliases, domains.data, t]);
 
     const toggleAlias = useCallback((email: string) => {
         setSelectedEmails((prev) => {
@@ -103,19 +106,17 @@ export function ImportWizard() {
         if (!backend || !targetDestination) return;
         setStep("progress");
         const toImport = aliases.filter((a) => selectedEmails.has(a.email));
-        const domainToZoneId: Record<string, string> = {};
-        for (const z of zones.data ?? []) {
-            domainToZoneId[z.name.toLowerCase()] = z.id;
-        }
         const importResult = await importAliases(
             toImport,
             backend,
             domainToZoneId,
             targetDestination,
         );
+        // The alias list doesn't have them yet.
+        await queryClient.invalidateQueries({ queryKey: queryKeys.aliases() });
         setResult(importResult);
         setStep("summary");
-    }, [backend, targetDestination, aliases, selectedEmails, zones.data, importAliases]);
+    }, [backend, targetDestination, aliases, selectedEmails, domains.data, importAliases]);
 
     const handleStartOver = useCallback(() => {
         reset();
@@ -134,11 +135,18 @@ export function ImportWizard() {
         const d = a.domain.toLowerCase();
         perDomain.set(d, (perDomain.get(d) ?? 0) + 1);
     }
-    const overLimit = [...perDomain.entries()].filter(([, c]) => c > 200);
+    // Email Routing allows 200 rules per domain; the Worker has no limit.
+    const overLimit =
+        backend?.kind === "cloudflare" ? [...perDomain.entries()].filter(([, c]) => c > 200) : [];
 
     return (
-        <VStack gap={4} maxWidth={600} padding={4} style={{ marginInline: "auto" }}>
-            <Heading level={1}>{t("title")}</Heading>
+        <VStack
+            gap={4}
+            maxWidth={600}
+            {...(standalone && { padding: 4 })}
+            style={{ marginInline: standalone ? "auto" : undefined }}
+        >
+            {standalone && <Heading level={1}>{t("title")}</Heading>}
 
             <Stepper activeStep={STEP_INDEX[step]} density="compact">
                 <Step step={0} label={t("steps.service")} />
@@ -199,11 +207,11 @@ export function ImportWizard() {
                         <div style={{ maxHeight: 400, overflowY: "auto" }}>
                             <List density="compact" hasDividers>
                                 {aliases.map((alias) => {
-                                    const importable = zoneDomains.has(alias.domain.toLowerCase());
+                                    const canImport = importable(alias);
                                     return (
                                         <ListItem
                                             key={alias.email}
-                                            isDisabled={!importable}
+                                            isDisabled={!canImport}
                                             startContent={
                                                 <CheckboxInput
                                                     size="sm"
@@ -211,7 +219,7 @@ export function ImportWizard() {
                                                     isLabelHidden
                                                     value={selectedEmails.has(alias.email)}
                                                     onChange={() => toggleAlias(alias.email)}
-                                                    isDisabled={!importable}
+                                                    isDisabled={!canImport}
                                                 />
                                             }
                                             label={alias.email}
@@ -268,10 +276,10 @@ export function ImportWizard() {
                         onChange={setTargetDestination}
                         placeholder={t("destination_placeholder")}
                         options={
-                            destinations.data?.map((d) => ({
-                                value: d.email,
-                                label: d.email,
-                            })) ?? []
+                            // Aliases can only forward to confirmed mailboxes.
+                            destinations.data
+                                ?.filter((d) => d.verified)
+                                .map((d) => ({ value: d.email, label: d.email })) ?? []
                         }
                     />
 

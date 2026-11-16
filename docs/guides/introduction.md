@@ -36,7 +36,7 @@ MailFlare can keep your aliases in two places:
 - **Quick-create button** inside email fields on websites
 - **Bulk operations**: edit or delete several aliases at once
 - **Multiple domains**: manage aliases across all your domains
-- **Import** aliases from addy.io and SimpleLogin (extension)
+- **Import** aliases from addy.io and SimpleLogin
 
 ## Prerequisites
 

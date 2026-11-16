@@ -45,7 +45,9 @@ Signs out and removes your token, the cached aliases and domains, and the alias 
 name your domains and inboxes) from this device. App settings such as the theme stay. Your aliases
 keep working.
 
-## Import Aliases (extension only)
+## Import Aliases
 
 Imports your aliases from addy.io or SimpleLogin: pick the service, preview the aliases, choose the
-domain and destination, and MailFlare creates them one by one.
+destination, and MailFlare creates them one by one. They keep their addresses, so only aliases on
+your domains (including Email Routing subdomains) can be imported. In the extension the import
+opens in a tab; in the web app it is a page of its own.

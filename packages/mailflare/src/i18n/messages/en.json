@@ -78,15 +78,16 @@
         "save_settings": "Save as Default",
         "created_success": "Alias created successfully!",
         "created_and_copied": "Alias created and copied to clipboard!",
-        "creation_error": "Could not create the alias",
+        "creation_error": "Could not create the alias: {error}",
         "domain_not_found": "Domain not found",
         "invalid_domain": "Please select a valid domain",
         "invalid_format": "Please select a valid format",
         "invalid_length": "Length must be between 3 and 25",
         "invalid_word_count": "Word count must be between 1 and 5",
-        "invalid_custom_alias": "Custom alias must be at least 3 characters",
-        "invalid_custom_prefix": "Custom prefix is required",
-        "invalid_destination": "Please select a valid destination"
+        "invalid_custom_alias": "Use letters, digits, dots, underscores and hyphens, starting and ending with a letter or digit",
+        "invalid_custom_prefix": "Use letters, digits, dots, underscores and hyphens",
+        "invalid_destination": "Please select a valid destination",
+        "description_too_long": "Keep the description under 500 characters"
     },
     "alias_edit": {
         "title": "Edit Alias",
@@ -106,18 +107,23 @@
     "alias_bulk_edit": {
         "title": "Edit Selected Aliases",
         "keep_destinations": "Keep current destinations",
-        "success": "Selected aliases updated successfully!"
+        "success": "Selected aliases updated successfully!",
+        "enabled_keep": "Keep enabled or disabled",
+        "enabled_on": "Enable all",
+        "enabled_off": "Disable all",
+        "partial": "{failed} of {total} aliases could not be changed and stay selected: {error}"
     },
     "alias_bulk_delete": {
         "title": "Delete Selected Aliases",
         "question": "Are you sure you want to delete {count} aliases?",
-        "success": "Selected aliases deleted successfully!"
+        "success": "Selected aliases deleted successfully!",
+        "partial": "{failed} of {total} aliases could not be deleted and stay selected: {error}"
     },
     "login": {
         "mode_label": "Connection type",
         "mode_cloudflare": "Cloudflare API",
         "mode_worker": "Mailflare Worker",
-        "login_error": "Token could not be verified. Is it correct?",
+        "login_error": "Token could not be verified: {error}",
         "token_label": "Cloudflare API Token",
         "token_placeholder": "Paste your Cloudflare API token here",
         "save_token": "Save token",
@@ -231,6 +237,7 @@
     },
     "import": {
         "title": "Import Aliases",
+        "page_description": "Bring your aliases over from addy.io or SimpleLogin. They keep their addresses, so they must be on domains Mailflare manages.",
         "steps": {
             "service": "Service",
             "preview": "Select",
@@ -247,7 +254,7 @@
         "fetched_count": "Found {count, plural, one {# alias} other {# aliases}}",
         "select_all": "Select all",
         "deselect_all": "Deselect all",
-        "non_matching_zones": "{count, plural, one {# alias is} other {# aliases are}} on domains not in your Cloudflare zones and cannot be imported.",
+        "non_matching_zones": "{count, plural, one {# alias is} other {# aliases are}} on domains Mailflare can't create aliases on, and cannot be imported.",
         "back": "Back",
         "next": "Next",
         "select_destination": "Select the forwarding destination for all imported aliases:",

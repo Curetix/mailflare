@@ -32,6 +32,10 @@ type Props = {
     onClose: () => void;
 };
 
+/** Alias names: letters, digits, dots, underscores and hyphens; a letter or digit at both ends. */
+const LOCAL_PART = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/i;
+const PREFIX = /^[a-z0-9._-]{1,32}$/i;
+
 export function AliasCreateDialog({ open, onClose }: Props) {
     const t = useTranslations("alias_create");
     const tc = useTranslations("common");
@@ -56,18 +60,43 @@ export function AliasCreateDialog({ open, onClose }: Props) {
 
     const schema = useMemo(
         () =>
-            z.object({
-                domain: z.string().min(1, t("invalid_domain")),
-                format: z.enum(AliasFormats, { message: t("invalid_format") }),
-                characterCount: z.number().min(3).max(25),
-                wordCount: z.number().min(1).max(5),
-                separator: z.string(),
-                customAlias: z.string(),
-                description: z.string(),
-                prefixFormat: z.enum(AliasPrefixFormats),
-                customPrefix: z.string(),
-                destination: z.string().min(1, t("invalid_destination")),
-            }),
+            z
+                .object({
+                    domain: z.string().min(1, t("invalid_domain")),
+                    format: z.enum(AliasFormats, { message: t("invalid_format") }),
+                    characterCount: z
+                        .number()
+                        .min(3, t("invalid_length"))
+                        .max(25, t("invalid_length")),
+                    wordCount: z
+                        .number()
+                        .min(1, t("invalid_word_count"))
+                        .max(5, t("invalid_word_count")),
+                    separator: z.string(),
+                    customAlias: z.string(),
+                    description: z.string().max(500, t("description_too_long")),
+                    prefixFormat: z.enum(AliasPrefixFormats),
+                    customPrefix: z.string(),
+                    destination: z.string().min(1, t("invalid_destination")),
+                })
+                // The same rules as the Worker's (and fine for Email Routing).
+                .superRefine((values, ctx) => {
+                    if (values.format === "custom" && !LOCAL_PART.test(values.customAlias.trim())) {
+                        ctx.addIssue({
+                            code: "custom",
+                            path: ["customAlias"],
+                            message: t("invalid_custom_alias"),
+                        });
+                    }
+                    const prefix = values.format !== "custom" && values.prefixFormat === "custom";
+                    if (prefix && !PREFIX.test(values.customPrefix.trim())) {
+                        ctx.addIssue({
+                            code: "custom",
+                            path: ["customPrefix"],
+                            message: t("invalid_custom_prefix"),
+                        });
+                    }
+                }),
         [t],
     );
 
@@ -270,8 +299,8 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                     }
                     onClose();
                 },
-                onError: () => {
-                    toast({ body: t("creation_error"), type: "error" });
+                onError: (error) => {
+                    toast({ body: t("creation_error", { error: error.message }), type: "error" });
                 },
             },
         );
@@ -404,6 +433,14 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                                             label={t("custom_alias")}
                                             value={field.value}
                                             onChange={(value) => field.onChange(value)}
+                                            status={
+                                                errors.customAlias
+                                                    ? {
+                                                          type: "error",
+                                                          message: errors.customAlias.message,
+                                                      }
+                                                    : undefined
+                                            }
                                         />
                                     )}
                                 />
@@ -418,6 +455,14 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                                         placeholder={t("description_placeholder")}
                                         value={field.value}
                                         onChange={(value) => field.onChange(value)}
+                                        status={
+                                            errors.description
+                                                ? {
+                                                      type: "error",
+                                                      message: errors.description.message,
+                                                  }
+                                                : undefined
+                                        }
                                     />
                                 )}
                             />
@@ -442,6 +487,14 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                                             label={t("prefix_custom_label")}
                                             value={field.value}
                                             onChange={(value) => field.onChange(value)}
+                                            status={
+                                                errors.customPrefix
+                                                    ? {
+                                                          type: "error",
+                                                          message: errors.customPrefix.message,
+                                                      }
+                                                    : undefined
+                                            }
                                         />
                                     )}
                                 />

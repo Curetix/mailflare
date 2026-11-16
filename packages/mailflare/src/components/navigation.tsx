@@ -22,6 +22,7 @@ export const PATHS = {
     adminDomains: "/admin/domains",
     adminAccounts: "/admin/accounts",
     settings: "/settings",
+    import: "/import",
 } as const;
 
 /** Pages for the current connection. Management pages only exist in the Worker's own app. */
