@@ -397,9 +397,6 @@ importers:
       better-auth:
         specifier: ~1.7.23
         version: 1.7.23(drizzle-kit@1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@cloudflare/workers-types@5.20261114.1)(zod@4.6.7)))(drizzle-orm@1.0.0-rc.5(@cloudflare/workers-types@5.20261114.1)(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)))
-      better-psl:
-        specifier: ^1.2.0
-        version: 1.2.0
       ky:
         specifier: ^2.2.0
         version: 2.2.0
@@ -418,6 +415,9 @@ importers:
       react-icons:
         specifier: ^5.7.0
         version: 5.7.0(react@19.3.1)
+      tldts:
+        specifier: ^7.5.4
+        version: 7.5.4
       use-intl:
         specifier: ^4.15.1
         version: 4.15.1(@types/react@19.3.0)(react@19.3.1)
@@ -2840,10 +2840,6 @@ packages:
       zod:
         optional: true
 
-  better-psl@1.2.0:
-    resolution: {integrity: sha512-Gu32sUKP7V+22kzRkcr8OS5tOwSvzeiy5jMqGBBD/S+lSdQTdsKeNJiaywGBEcwA+ug16zfWE7NonjctSliYvg==}
-    engines: {node: '>=20'}
-
   blake3-wasm@2.1.5:
     resolution: {integrity: sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g==}
 
@@ -4297,10 +4293,6 @@ packages:
     engines: {node: '>=22.0.0'}
     hasBin: true
 
-  punycode@2.3.1:
-    resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
-    engines: {node: '>=6'}
-
   pvtsutils@1.3.6:
     resolution: {integrity: sha512-PLgQXQ6H2FWCaeRak8vvk1GW462lMxB5s3Jm673N82zI4vqtVUPuZdffdZbPDFRoU8kAhItWFtPCWiPpp4/EDg==}
 
@@ -4670,6 +4662,13 @@ packages:
   tinypool@2.2.0:
     resolution: {integrity: sha512-jBrmx4lYmaC9k/mgPbylxs7kBUxHtD8256up+HjLaDFfXScKJQyil+SWXSvhAtT7XHo+yTVlpB81PGmHP8oLSQ==}
     engines: {node: ^20.0.0 || >=22.0.0}
+
+  tldts-core@7.5.4:
+    resolution: {integrity: sha512-9+4zWtKEDZ3V3FoZ1B97rv+5z5oqp7yeXGVze3CxgQ+CJro9do9DCPD00wxstYZDXDMXsurkBerFfiB6GYtPbA==}
+
+  tldts@7.5.4:
+    resolution: {integrity: sha512-Rn2ABgjHZrA+jzqom5zhxA0hLohzYrIgfCPyhpTUxqsUrcsBYuab49LseR9waB9Jr8/MxdodvMHA91oRiGLO3Q==}
+    hasBin: true
 
   tmp@0.2.7:
     resolution: {integrity: sha512-e0votIpp4Uo2AJYSzVHV6xCcawuiez3DzqDAbrTc3YxBkplN6e+dM13ZeIcZnDg/QpSuU2zfZ3rzwY8ukEnaXw==}
@@ -7918,10 +7917,6 @@ snapshots:
     optionalDependencies:
       zod: 4.6.7
 
-  better-psl@1.2.0:
-    dependencies:
-      punycode: 2.3.1
-
   blake3-wasm@2.1.5: {}
 
   boolbase@2.0.0: {}
@@ -9171,8 +9166,6 @@ snapshots:
       cac: 7.1.0
       tasuku: 2.3.0
 
-  punycode@2.3.1: {}
-
   pvtsutils@1.3.6:
     dependencies:
       tslib: 2.9.1
@@ -9637,6 +9630,12 @@ snapshots:
       picomatch: 4.0.7
 
   tinypool@2.2.0: {}
+
+  tldts-core@7.5.4: {}
+
+  tldts@7.5.4:
+    dependencies:
+      tldts-core: 7.5.4
 
   tmp@0.2.7: {}
 

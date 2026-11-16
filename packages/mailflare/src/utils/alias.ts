@@ -1,5 +1,5 @@
-import psl from "better-psl";
 import { generate as randomWords } from "random-words";
+import { parse as parseDomain } from "tldts";
 
 import type { AliasSettings } from "../stores/alias-settings-store";
 import { randomString } from "./random-string";
@@ -21,16 +21,15 @@ export function generateAliasAddress({
     let prefix = "";
     if (prefixFormat === "custom" && customPrefix) {
         prefix = customPrefix.trim();
-    } else if (hostname && psl.isValid(hostname)) {
-        // Cast type since we just checked if it's valid, this should never be an issue
-        const parsedHostname = psl.parse(hostname).parsed!;
+    } else if (hostname) {
+        const parsedHostname = parseDomain(hostname);
 
-        if (prefixFormat === "domainWithoutExtension" && parsedHostname.sld) {
-            prefix = parsedHostname.sld;
-        } else if (prefixFormat === "domainWithExtension" && parsedHostname?.domain) {
+        if (prefixFormat === "domainWithoutExtension" && parsedHostname.domainWithoutSuffix) {
+            prefix = parsedHostname.domainWithoutSuffix;
+        } else if (prefixFormat === "domainWithExtension" && parsedHostname.domain) {
             prefix = parsedHostname.domain;
         } else if (prefixFormat === "fullDomain") {
-            prefix = hostname;
+            prefix = parsedHostname.hostname ?? hostname;
         }
     }
 
