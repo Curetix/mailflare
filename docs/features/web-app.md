@@ -25,8 +25,10 @@ next to the list.
 
 With a Cloudflare API token, the web app talks to the Cloudflare API through a proxy: Cloudflare
 Pages Functions forward the requests to `api.cloudflare.com`, because browsers can't call it
-directly (CORS). Your token is passed on to Cloudflare and never stored on the server. A Mailflare
-Worker is called directly.
+directly (CORS). Your token is passed on to Cloudflare and never stored on the server. The proxy
+only passes on the requests Mailflare makes (domains, inboxes and routing rules), only for the app
+on its own site, and nothing but the token and the request itself. A Mailflare Worker is called
+directly.
 
 ## PWA Support
 
