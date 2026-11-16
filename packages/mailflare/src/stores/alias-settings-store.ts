@@ -45,6 +45,13 @@ export const useAliasSettingsStore = create<AliasSettingsState>((set, get) => ({
     },
 }));
 
+/** Forgets the saved defaults (they name the account's domains and inboxes). */
+export function resetAliasSettings() {
+    const { updateAliasSettings } = useAliasSettingsStore.getState();
+    useAliasSettingsStore.setState({ updateAliasSettings }, true);
+    _aliasSettingsStorage?.remove(StorageKeys.AliasSettings);
+}
+
 export async function hydrateAliasSettingsStore(adapter: StorageAdapter) {
     const saved = await adapter.get<AliasSettings>(StorageKeys.AliasSettings);
     if (saved) {

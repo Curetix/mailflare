@@ -98,16 +98,25 @@ export function AliasCreateDialog({ open, onClose }: Props) {
 
     useEffect(() => {
         if (open) {
+            // Saved values only count while they are still among the options.
+            const zoneDomain = domains.data?.find((d) => d.zoneId === selectedZoneId)?.domain ?? "";
+            const domainOrZone = (domain: string | undefined) =>
+                domain && domains.data?.some((d) => d.domain === domain) ? domain : zoneDomain;
+            const confirmedOrFirst = (email: string | undefined) =>
+                email && confirmed.some((d) => d.email === email)
+                    ? email
+                    : (confirmed[0]?.email ?? "");
             if (createFormDraft) {
                 // Restore saved draft
-                reset(createFormDraft);
+                reset({
+                    ...createFormDraft,
+                    domain: domainOrZone(createFormDraft.domain),
+                    destination: confirmedOrFirst(createFormDraft.destination),
+                });
             } else {
                 // Fresh form from settings
                 reset({
-                    domain:
-                        aliasSettings.domain ??
-                        domains.data?.find((d) => d.zoneId === selectedZoneId)?.domain ??
-                        "",
+                    domain: domainOrZone(aliasSettings.domain),
                     format: aliasSettings.format ?? "characters",
                     characterCount: aliasSettings.characterCount ?? 5,
                     wordCount: aliasSettings.wordCount ?? 2,
@@ -116,7 +125,7 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                     description: hostname || "",
                     prefixFormat: hostname ? (aliasSettings.prefixFormat ?? "none") : "none",
                     customPrefix: "",
-                    destination: aliasSettings.destination ?? confirmed[0]?.email ?? "",
+                    destination: confirmedOrFirst(aliasSettings.destination),
                 });
             }
         }

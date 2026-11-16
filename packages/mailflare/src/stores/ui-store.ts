@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { Alias } from "../backend/types";
 import type { StorageAdapter } from "../storage/storage";
 import type { AliasFormat, AliasPrefixFormat } from "./alias-settings-store";
+import { useAuthStore } from "./auth-store";
 
 const UI_STATE_KEY = "ui-state";
 const DEBOUNCE_MS = 300;
@@ -160,3 +161,23 @@ export const useUIStore = create<UIState>((set, get) => ({
         persistState(get());
     },
 }));
+
+/**
+ * Selections and the create form's draft belong to one domain of one
+ * connection: a bulk action must never reach aliases that aren't listed.
+ */
+useAuthStore.subscribe((state, previous) => {
+    // Loading the stored state (from nothing) changes nothing that was shown.
+    if (previous.apiToken === null) return;
+    const sameConnection =
+        state.apiToken === previous.apiToken && state.workerUrl === previous.workerUrl;
+    const zoneChanged =
+        previous.selectedZoneId !== null && state.selectedZoneId !== previous.selectedZoneId;
+    if (sameConnection && !zoneChanged) return;
+    const ui = useUIStore.getState();
+    if (ui.selectedAliases.length > 0 || ui.selectEnabled) {
+        ui.clearSelection();
+        ui.setSelectEnabled(false);
+    }
+    if (ui.createFormDraft) ui.setCreateFormDraft(null);
+});

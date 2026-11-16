@@ -17,7 +17,6 @@ import { z } from "zod";
 import { useCloudflareConfig } from "../api/config-context";
 import { verifyConnection } from "../backend/create-backend";
 import type { BackendKind, Connection } from "../backend/types";
-import { queryKeys } from "../backend/use-mailflare";
 import { normalizeWorkerUrl } from "../backend/worker-backend";
 import { GITHUB_LINK } from "../const";
 import { useOnlineStatus } from "../hooks/use-online-status";
@@ -44,7 +43,7 @@ export function useConnect() {
             const error = await verifyConnection(connection, apiBaseUrl);
             if (error) throw new Error(error);
             // Never show data cached for a previous connection.
-            queryClient.removeQueries({ queryKey: queryKeys.all });
+            queryClient.getQueryCache().clear();
             connect(connection);
         },
     });

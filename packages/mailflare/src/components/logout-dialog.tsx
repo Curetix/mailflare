@@ -7,6 +7,7 @@ import { signOutAccount } from "../account/account-client";
 import { useCloudflareConfig } from "../api/config-context";
 import { useStorage } from "../storage/context";
 import { StorageKeys } from "../storage/storage";
+import { resetAliasSettings } from "../stores/alias-settings-store";
 import { useAuthStore } from "../stores/auth-store";
 
 type Props = {
@@ -42,8 +43,11 @@ export function LogoutDialog({ open, onClose, onLoggedOut }: Props) {
             }
         }
         logout();
-        await queryClient.invalidateQueries();
+        // Everything of the account: cached data, also in memory (where it
+        // would be persisted again), and the defaults naming its inboxes.
+        queryClient.clear();
         await storageAdapter.remove(StorageKeys.QueryCache);
+        resetAliasSettings();
         toast({ body: t("success") });
         onClose();
         onLoggedOut?.();

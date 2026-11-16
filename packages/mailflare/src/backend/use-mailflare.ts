@@ -33,8 +33,34 @@ export function useBackend(): AliasBackend | null {
     return connection ? getBackend(connection, apiBaseUrl) : null;
 }
 
+/** FNV-1a: a short, non-secret fingerprint of a token. */
+function fingerprint(text: string) {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < text.length; i += 1) {
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(36);
+}
+
+/**
+ * Which connection cached data belongs to. Part of every query key, so data
+ * of one token or Worker never shows up for another, also across tabs
+ * sharing the persisted cache.
+ */
+export function connectionScope(state: { apiToken: string | null; workerUrl: string | null }) {
+    if (!state.apiToken) return "none";
+    return `${state.workerUrl ?? "cloudflare"}#${fingerprint(state.apiToken)}`;
+}
+
+/** The first element of every key of the app's own queries (see queryKeys). */
+export const QUERY_ROOT = "mailflare";
+
 export const queryKeys = {
-    all: ["mailflare"] as const,
+    /** All queries of the current connection. */
+    get all() {
+        return [QUERY_ROOT, connectionScope(useAuthStore.getState())] as const;
+    },
     zones: () => [...queryKeys.all, "zones"] as const,
     domains: () => [...queryKeys.all, "domains"] as const,
     zoneStatus: (zoneId: string | null) => [...queryKeys.all, "zone-status", zoneId] as const,
@@ -49,6 +75,9 @@ export const queryKeys = {
 
 const listOptions = {
     retry: false,
+    // Offline, a refresh waits for the connection instead of failing, so the
+    // cached list stays on screen (and in the persisted cache).
+    networkMode: "online",
     staleTime: 5 * 60 * 1000,
     gcTime: Number.POSITIVE_INFINITY,
 } as const;
