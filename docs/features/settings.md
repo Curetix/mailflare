@@ -41,8 +41,9 @@ Reloads your domains and destination addresses. Useful after changes in the Clou
 
 ## Logout
 
-Signs out and clears all local data: your token, cached data, and settings. Your aliases keep
-working.
+Signs out and removes your token, the cached aliases and domains, and the alias defaults (which
+name your domains and inboxes) from this device. App settings such as the theme stay. Your aliases
+keep working.
 
 ## Import Aliases (extension only)
 

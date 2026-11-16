@@ -181,13 +181,13 @@
         },
         "logout": {
             "title": "Logout",
-            "description": "Clear all data and settings",
+            "description": "Remove your token and data from this device",
             "action": "Logout",
             "success": "Goodbye",
             "failed": "Couldn't reach the Worker to sign you out. Try again when you're online.",
             "dialog": {
                 "title": "Logout",
-                "description": "Do you want to log out? All local data will be deleted, but your aliases will of course keep working."
+                "description": "Do you want to log out? Your token, cached data and alias defaults are removed from this device; app settings like the theme stay. Your aliases keep working."
             }
         },
         "info": "Info",

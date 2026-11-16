@@ -6,6 +6,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { type CloudflareAccess, CloudflareConfigProvider } from "../api/config-context";
+import { QUERY_ROOT } from "../backend/use-mailflare";
 import { IntlProvider, type Messages } from "../i18n";
 import { StorageProvider } from "../storage/context";
 import type { StorageAdapter } from "../storage/storage";
@@ -105,7 +106,15 @@ export function MailflareProvider({
         <StorageProvider value={storageAdapter}>
             <PersistQueryClientProvider
                 client={queryClientRef.current}
-                persistOptions={{ persister }}
+                persistOptions={{
+                    persister,
+                    dehydrateOptions: {
+                        // Only the app's own data, also when its last refresh
+                        // failed; nothing of the account pages (session tokens).
+                        shouldDehydrateQuery: (query) =>
+                            query.queryKey[0] === QUERY_ROOT && query.state.data !== undefined,
+                    },
+                }}
             >
                 <IntlProvider locale={locale} messages={messages}>
                     <CloudflareConfigProvider

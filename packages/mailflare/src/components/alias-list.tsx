@@ -93,14 +93,18 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
 
     const [filteredAliases, setFilteredAliases] = useState<Alias[]>([]);
 
-    // Select the first zone once zones are known and none is selected yet.
+    // Select the first zone once zones are known and none (or one that is gone) is selected.
     useEffect(() => {
-        const firstZone = zones.data?.[0];
-        if (selectedZoneId === null && firstZone) setSelectedZoneId(firstZone.id);
-    }, [zones.data, selectedZoneId, setSelectedZoneId]);
+        if (!zones.isSuccess) return;
+        if (selectedZoneId !== null && zones.data.some((zone) => zone.id === selectedZoneId)) {
+            return;
+        }
+        setSelectedZoneId(zones.data[0]?.id ?? null);
+    }, [zones.isSuccess, zones.data, selectedZoneId, setSelectedZoneId]);
 
+    // Cached aliases stay listed when a refresh fails (e.g. offline).
     useEffect(() => {
-        if (!aliases.isSuccess || !aliases.data || aliases.data.length === 0) {
+        if (!aliases.data || aliases.data.length === 0) {
             setFilteredAliases([]);
             return;
         }
@@ -118,7 +122,7 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
                 { order: "desc", by: (item) => item.order },
             ),
         );
-    }, [aliases.isSuccess, aliases.data, ruleFilter, aliasSearch]);
+    }, [aliases.data, ruleFilter, aliasSearch]);
 
     const aliasToEdit = filteredAliases.find((a) => a.id === aliasToEditId) ?? null;
     const aliasToDelete = filteredAliases.find((a) => a.id === aliasToDeleteId) ?? null;
@@ -441,7 +445,7 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
                 style={{ flex: filteredAliases.length > 0 ? 1 : undefined, overflowY: "auto" }}
             >
                 <VStack gap={2}>
-                    {aliases.isSuccess &&
+                    {aliases.data &&
                         filteredAliases.map((alias) => (
                             <AliasCard
                                 key={alias.id}
