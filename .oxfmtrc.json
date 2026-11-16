@@ -4,7 +4,7 @@
     "bracketSameLine": false,
     "bracketSpacing": true,
     "experimentalSortImports": {},
-    "ignorePatterns": [".agents/**", ".claude/**", ".mcp.json"],
+    "ignorePatterns": [".agents/**", ".claude/**", ".mcp.json", "CHANGELOG.md"],
     "jsxSingleQuote": false,
     "objectWrap": "preserve",
     "printWidth": 100,

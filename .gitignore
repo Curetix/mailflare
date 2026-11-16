@@ -11,6 +11,8 @@ build
 # Environment variables
 .env
 .env*.local
+# Store credentials from `wxt submit init`.
+.env.submit
 
 # IDEs and editors
 .vscode/*
