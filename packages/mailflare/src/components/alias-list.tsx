@@ -67,7 +67,7 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
     const aliasSearch = useUIStore((s) => s.aliasSearch);
     const setAliasSearch = useUIStore((s) => s.setAliasSearch);
     const selectedAliases = useUIStore((s) => s.selectedAliases);
-    const toggleAliasSelection = useUIStore((s) => s.toggleAliasSelection);
+    const setAliasSelected = useUIStore((s) => s.setAliasSelected);
     const clearSelection = useUIStore((s) => s.clearSelection);
     const createOpen = useUIStore((s) => s.createOpen);
     const setCreateOpen = useUIStore((s) => s.setCreateOpen);
@@ -452,7 +452,8 @@ export function AliasList({ hideDomainSelector, onOpenAlias, openAliasId }: Alia
                                 alias={alias}
                                 selectEnabled={selectEnabled}
                                 isSelected={selectedAliases.some((a) => a.id === alias.id)}
-                                onSelect={() => toggleAliasSelection(alias)}
+                                // The checkbox and the card both report it: setting, not toggling.
+                                onSelect={(selected) => setAliasSelected(alias, selected)}
                                 onEdit={() => {
                                     if (onOpenAlias) {
                                         onOpenAlias(alias);
