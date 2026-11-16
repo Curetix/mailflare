@@ -27,16 +27,19 @@ export function parseMessage(bytes: Uint8Array): ParsedMessage {
     const text = new TextDecoder().decode(bytes.subarray(0, end));
     const headers: Header[] = [];
     for (const line of text.split(/\r?\n/)) {
+        // A stray CR is not a line break here, and the Email Service rejects it
+        // when the message is re-sent (see serializeMessage).
+        const clean = line.replace(/\r/g, " ");
         const last = headers.at(-1);
-        if (/^[ \t]/.test(line) && last) {
-            last.value += `${CRLF}${line}`; // Keep folding as is.
+        if (/^[ \t]/.test(clean) && last) {
+            last.value += `${CRLF}${clean}`; // Keep folding as is.
             continue;
         }
-        const colon = line.indexOf(":");
+        const colon = clean.indexOf(":");
         if (colon <= 0) continue;
         headers.push({
-            name: line.slice(0, colon).trim(),
-            value: line.slice(colon + 1).trimStart(),
+            name: clean.slice(0, colon).trim(),
+            value: clean.slice(colon + 1).trimStart(),
         });
     }
     return { headers, body: bytes.subarray(bodyStart) };

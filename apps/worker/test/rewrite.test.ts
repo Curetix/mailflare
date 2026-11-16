@@ -37,6 +37,33 @@ describe("parseMessage", () => {
             expect(serialized.replace(/\r\n/g, "")).not.toMatch(/[\r\n]/);
         }
     });
+
+    it("turns a stray CR in a header name or value into a space", () => {
+        // Only a CRLF (or LF) ends a header line; any other CR is content.
+        const parsed = parseMessage(
+            encoder.encode("Subject: Hi\rThere\r\nX\rTest: a\rb\r\n\r\nBody"),
+        );
+        expect(parsed.headers).toEqual([
+            { name: "Subject", value: "Hi There" },
+            { name: "X Test", value: "a b" },
+        ]);
+        expect(new TextDecoder().decode(parsed.body)).toBe("Body");
+    });
+
+    it("re-sends a message with stray CRs without a bare CR in its headers", () => {
+        const raw = "Subject: Hi\rThere\r\nFrom: a@b.test\r\nX-Test: one\r\r\n two\r\r\n\r\nBody\r";
+        const serialized = new TextDecoder().decode(
+            serializeMessage(parseMessage(encoder.encode(raw))),
+        );
+        const split = serialized.indexOf("\r\n\r\n");
+        const head = serialized.slice(0, split);
+        expect(serialized.slice(split + 4)).toBe("Body\r");
+        for (let i = 0; i < head.length; i += 1) {
+            if (head[i] === "\r") expect(head[i + 1]).toBe("\n");
+            if (head[i] === "\n") expect(head[i - 1]).toBe("\r");
+        }
+        expect(head).toBe("Subject: Hi There\r\nFrom: a@b.test\r\nX-Test: one \r\n two ");
+    });
 });
 
 describe("reverse addresses", () => {
