@@ -48,6 +48,5 @@ themselves: the app reloads once when an update is ready.
 | Context menu alias generation       | ✅        | ❌      |
 | Quick-create button in email fields | ✅        | ❌      |
 | Website Domain alias format         | ✅        | ❌      |
-| Importing from addy.io/SimpleLogin  | ✅        | ❌      |
 | Installable as a PWA                | ❌        | ✅      |
 | Works on any device                 | ❌        | ✅      |

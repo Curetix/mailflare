@@ -43,7 +43,8 @@ export function useImport() {
                     status: "error",
                     errors: [`Failed to fetch aliases: ${String(error)}`],
                 }));
-                return [];
+                // Not "no aliases found": the caller reports the failure.
+                throw error;
             }
         },
         [],
@@ -102,7 +103,8 @@ export function useImport() {
                         destination,
                         description: alias.description || alias.localPart,
                         enabled: alias.enabled,
-                        // Sort imported aliases after the ones created in Mailflare.
+                        // Rules: after the ones created in Mailflare. The Worker
+                        // lists aliases by creation time.
                         order: 0,
                     });
                     result.imported++;

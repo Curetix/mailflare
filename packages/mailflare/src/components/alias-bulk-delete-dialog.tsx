@@ -6,6 +6,8 @@ import { useTranslations } from "use-intl";
 import type { Alias } from "../backend/types";
 import { useMailflare } from "../backend/use-mailflare";
 import { useOnlineStatus } from "../hooks/use-online-status";
+import { useUIStore } from "../stores/ui-store";
+import { errorText, settleAll } from "../utils/settle";
 
 type Props = {
     open: boolean;
@@ -20,6 +22,7 @@ export function AliasBulkDeleteDialog({ open, onClose, selectedAliases }: Props)
     const toast = useToast();
     const { deleteAlias } = useMailflare();
     const { isOnline } = useOnlineStatus();
+    const setSelectedAliases = useUIStore((s) => s.setSelectedAliases);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     async function handleDelete() {
@@ -29,15 +32,26 @@ export function AliasBulkDeleteDialog({ open, onClose, selectedAliases }: Props)
         }
 
         setIsSubmitting(true);
-        try {
-            await Promise.all(selectedAliases.map((alias) => deleteAlias.mutateAsync(alias)));
+        const { failed, firstError } = await settleAll(selectedAliases, (alias) =>
+            deleteAlias.mutateAsync(alias),
+        );
+        setIsSubmitting(false);
+        if (failed.length === 0) {
             toast({ body: t("success") });
             onClose(true);
-        } catch (error) {
-            toast({ body: String(error), type: "error" });
-        } finally {
-            setIsSubmitting(false);
+            return;
         }
+        // The ones that failed stay selected, to try again.
+        setSelectedAliases(failed);
+        toast({
+            body: t("partial", {
+                failed: failed.length,
+                total: selectedAliases.length,
+                error: errorText(firstError),
+            }),
+            type: "error",
+        });
+        onClose();
     }
 
     return (

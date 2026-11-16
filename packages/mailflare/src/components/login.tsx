@@ -70,7 +70,13 @@ function CloudflareLogin() {
             onSubmit={handleSubmit(({ token }) =>
                 mutate(
                     { kind: "cloudflare", token },
-                    { onError: () => toast({ body: t("login_error"), type: "error" }) },
+                    {
+                        onError: (error) =>
+                            toast({
+                                body: t("login_error", { error: error.message }),
+                                type: "error",
+                            }),
+                    },
                 ),
             )}
         >

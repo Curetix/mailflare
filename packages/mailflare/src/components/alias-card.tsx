@@ -10,10 +10,10 @@ import { TbClipboardCopy, TbEdit, TbTrash } from "react-icons/tb";
 import { useTranslations } from "use-intl";
 
 import type { Alias } from "../backend/types";
-import { useMailflare } from "../backend/use-mailflare";
+import { useDestinations } from "../backend/use-mailflare";
 
 function AliasBadge({ alias }: { alias: Alias }) {
-    const { destinations } = useMailflare();
+    const destinations = useDestinations();
     const t = useTranslations("alias_badge");
 
     const destination = destinations.data?.find((d) => alias.destination === d.email);

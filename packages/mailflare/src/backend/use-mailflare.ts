@@ -92,6 +92,21 @@ function requireZone(zoneId: string | null): string {
     return zoneId;
 }
 
+/**
+ * Only the destinations, for components rendered once per alias: useMailflare
+ * sets up every query and mutation of the app.
+ */
+export function useDestinations() {
+    const backend = useBackend();
+    return useQuery({
+        ...listOptions,
+        queryKey: queryKeys.destinations(),
+        queryFn: () => requireBackend(backend).listDestinations(),
+        enabled: !!backend,
+        placeholderData: [],
+    });
+}
+
 /** Aliases, zones and destinations of the active backend, plus alias mutations. */
 export function useMailflare() {
     const backend = useBackend();
