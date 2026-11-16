@@ -21,8 +21,8 @@ The MailFlare web app can be self-hosted on your own Cloudflare Pages project. T
 1. **Clone the repository**
 
     ```bash
-    git clone https://github.com/Curetix/mailflare-extension.git
-    cd mailflare-extension
+    git clone https://github.com/Curetix/mailflare.git
+    cd mailflare
     ```
 
 2. **Install dependencies**

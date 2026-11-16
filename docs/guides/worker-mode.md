@@ -27,7 +27,7 @@ domains, and the aliases live in the Worker's D1 database.
 The quickest way is the deploy button. It copies the repository into a new GitHub repository on
 your account, creates the Worker's D1 database, and deploys it:
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Curetix/mailflare-extension)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Curetix/mailflare)
 
 During setup, Cloudflare asks for an `ADMIN_TOKEN`. Use a long random string, for example the
 output of `openssl rand -base64 32`, and keep it: you'll enter it in the app to connect. It also
@@ -37,8 +37,8 @@ asks for an `AUTH_SECRET`, another random string, which you only need for
 To deploy from your own machine instead:
 
 ```bash
-git clone https://github.com/Curetix/mailflare-extension.git
-cd mailflare-extension
+git clone https://github.com/Curetix/mailflare.git
+cd mailflare
 pnpm install
 cd apps/worker
 pnpm run deploy                           # builds the app, deploys, creates the D1 database and its tables

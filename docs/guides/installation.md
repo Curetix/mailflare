@@ -13,11 +13,10 @@ All Chromium-based browsers can install extensions from the Chrome Web Store.
 
 ### Firefox
 
-Download the latest release from the [GitHub Releases](https://github.com/Curetix/mailflare-extension/releases/latest) page.
+Install the extension from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/mailflare/). It updates itself from there.
 
-1. Download the `.xpi` file from the latest release
-2. Firefox will prompt you to install the extension
-3. Click "Add" to install
+If you installed MailFlare 1.x from a `.xpi` file on GitHub, it doesn't update on its own: install
+it once from Firefox Add-ons, and your token and settings carry over.
 
 ## Web App
 

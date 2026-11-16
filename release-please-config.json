@@ -7,7 +7,6 @@
             "release-type": "node",
             "package-name": "mailflare",
             "changelog-path": "CHANGELOG.md",
-            "release-as": "2.0.0",
             "exclude-paths": ["apps/landing", "docs", ".github"],
             "extra-files": [
                 {

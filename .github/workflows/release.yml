@@ -55,8 +55,8 @@ jobs:
             STORES: ${{ inputs.stores || 'both' }}
             DRY_RUN: ${{ inputs.dry-run && 'true' || 'false' }}
             FIREFOX_EXTENSION_ID: ${{ vars.FIREFOX_EXTENSION_ID || '{f0bdc9fa-a062-4424-baee-16530c53aa06}' }}
-            # unlisted: signed by Mozilla, distributed through the GitHub release.
-            FIREFOX_CHANNEL: ${{ vars.FIREFOX_CHANNEL || 'unlisted' }}
+            # listed: reviewed and distributed by addons.mozilla.org.
+            FIREFOX_CHANNEL: ${{ vars.FIREFOX_CHANNEL || 'listed' }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -103,16 +103,3 @@ jobs:
                       args+=(--firefox-zip .output/*-firefox.zip --firefox-sources-zip .output/*-sources.zip)
                   fi
                   pnpm wxt submit "${args[@]}"
-
-            - name: Attach the signed Firefox add-on (unlisted channel)
-              if: >-
-                  env.DRY_RUN != 'true' && env.STORES != 'chrome' &&
-                  env.FIREFOX_CHANNEL == 'unlisted'
-              working-directory: apps/extension
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
-                  FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
-              run: |
-                  node scripts/fetch-signed-xpi.mjs "${TAG#v}"
-                  gh release upload "$TAG" .output/*.xpi --clobber

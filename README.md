@@ -14,7 +14,7 @@ mail server of your own.
       No 200-alias limit, replies from the alias, statistics, and optional accounts for other
       people. The Worker serves its own copy of the web app.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Curetix/mailflare-extension)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Curetix/mailflare)
 
 The button deploys the Mailflare Worker; see the [Worker guide](docs/guides/worker-mode.md).
 

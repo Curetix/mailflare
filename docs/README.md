@@ -7,7 +7,7 @@ browser or as a web app.
 
 1. **Install the extension.** Download MailFlare for
    [Chrome](https://chromewebstore.google.com/detail/mailflare-email-alias-ext/aomfbgcabccoecaoimicmmkjdmdgcfpi)
-   or [Firefox](https://github.com/Curetix/mailflare-extension/releases/latest), or use the
+   or [Firefox](https://addons.mozilla.org/firefox/addon/mailflare/), or use the
    [web app](https://app.mailflare.cc).
 2. **Connect it to Cloudflare.** Either create a Cloudflare API token (see
    [API Token Setup](guides/api-token.md)), and every alias becomes an Email Routing rule; or

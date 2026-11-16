@@ -16,9 +16,7 @@ derives it from the [Conventional Commits](https://www.conventionalcommits.org) 
    right before merging it: the next push to `main` replaces them.
 3. Merging the PR tags `vX.Y.Z` and creates the GitHub release with those notes. The workflow then
    builds the extension, attaches the Chrome, Firefox and sources ZIPs to the release, and submits
-   them to the Chrome Web Store and Firefox Add-ons. On the `unlisted` Firefox channel it waits for
-   Mozilla to sign the version (usually minutes, at most 30) and attaches the signed `.xpi`, which
-   is what Firefox users install.
+   them to the Chrome Web Store and Firefox Add-ons, where they go out once reviewed.
 
 Worker self-hosters update by pulling the release and running `pnpm run deploy` (see the
 [Worker guide](docs/guides/worker-mode.md)). It applies new database migrations before deploying
@@ -26,8 +24,8 @@ the new code (on a first deploy, after it, once the database exists), so migrati
 working with the previous release: add tables, columns with defaults and indexes; don't rename or
 drop.
 
-**The first release** is forced to `2.0.0` by `"release-as"` in `release-please-config.json`.
-Remove that line right after `v2.0.0` is out, or every later release would be `2.0.0` too.
+To force a version, add `"release-as": "X.Y.Z"` to the package in `release-please-config.json`,
+and remove it again once that release is out.
 
 ### Sending a release to the stores again
 
@@ -66,17 +64,13 @@ workflow uses API v2.
 
 Repository variables, all optional:
 
-| Variable                | Default                                                   |
-| ----------------------- | --------------------------------------------------------- |
-| `CHROME_EXTENSION_ID`   | `aomfbgcabccoecaoimicmmkjdmdgcfpi`                        |
-| `FIREFOX_EXTENSION_ID`  | `{f0bdc9fa-a062-4424-baee-16530c53aa06}`                  |
-| `FIREFOX_CHANNEL`       | `unlisted` (the signed `.xpi` goes to the GitHub release) |
-| `PAGES_APP_PROJECT`     | `mailflare-app`                                           |
-| `PAGES_LANDING_PROJECT` | `mailflare-landing`                                       |
-
-The add-on is unlisted on addons.mozilla.org. Once Mozilla has made it listed, set
-`FIREFOX_CHANNEL` to `listed` and point `FIREFOX_DOWNLOAD_LINK` (`packages/mailflare/src/const.ts`)
-and the installation guide at its listing.
+| Variable                | Default                                  |
+| ----------------------- | ---------------------------------------- |
+| `CHROME_EXTENSION_ID`   | `aomfbgcabccoecaoimicmmkjdmdgcfpi`       |
+| `FIREFOX_EXTENSION_ID`  | `{f0bdc9fa-a062-4424-baee-16530c53aa06}` |
+| `FIREFOX_CHANNEL`       | `listed`                                 |
+| `PAGES_APP_PROJECT`     | `mailflare-app`                          |
+| `PAGES_LANDING_PROJECT` | `mailflare-landing`                      |
 
 ## One-time setup
 

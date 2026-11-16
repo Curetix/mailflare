@@ -256,9 +256,8 @@ export default function HomePage() {
                                 Extension Downloads
                             </Heading>
                             <Text type="large" color="secondary">
-                                For Chromium-based browsers (Chrome, Brave, Edge, Opera), install
-                                the extension from the Chrome Web Store. For Firefox, download it
-                                from the GitHub releases page.
+                                Install the extension from the Chrome Web Store for Chromium-based
+                                browsers (Chrome, Brave, Edge, Opera), or from Firefox Add-ons.
                             </Text>
                         </VStack>
                         <VStack gap={3} style={{ flex: "0 1 240px" }}>
