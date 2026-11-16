@@ -8,7 +8,6 @@
         "save": "Save",
         "error": "Error",
         "success": "Success",
-        "conflict": "Conflict",
         "create": "Create",
         "edit": "Edit",
         "delete": "Delete",
@@ -16,7 +15,6 @@
         "disabled": "Disabled",
         "refresh": "Refresh",
         "close": "Close",
-        "loading": "Loading...",
         "offline": "Requires internet connection"
     },
     "alias_card": {
@@ -78,7 +76,6 @@
         "regenerate": "Regenerate",
         "alias_already_exists": "This alias already exists",
         "save_settings": "Save as Default",
-        "modal_close_blocked": "Please wait for the operation to finish",
         "created_success": "Alias created successfully!",
         "created_and_copied": "Alias created and copied to clipboard!",
         "creation_error": "Could not create the alias",
@@ -88,11 +85,8 @@
         "invalid_length": "Length must be between 3 and 25",
         "invalid_word_count": "Word count must be between 1 and 5",
         "invalid_custom_alias": "Custom alias must be at least 3 characters",
-        "invalid_prefix_format": "Please select a valid prefix format",
         "invalid_custom_prefix": "Custom prefix is required",
-        "invalid_destination": "Please select a valid destination",
-        "destinations_loading_error": "Could not load destinations",
-        "destination_not_verified": "This destination is not verified"
+        "invalid_destination": "Please select a valid destination"
     },
     "alias_edit": {
         "title": "Edit Alias",
@@ -208,13 +202,11 @@
         },
         "manage_domains": {
             "title": "Domains & destinations",
-            "description": "Domains and mailboxes your Worker uses",
-            "action": "Manage"
+            "description": "Domains and mailboxes your Worker uses"
         },
         "accounts": {
             "title": "Accounts",
-            "description": "People with an account on this Worker",
-            "action": "Manage"
+            "description": "People with an account on this Worker"
         },
         "worker": {
             "title": "Domains, inboxes and account",
@@ -234,7 +226,8 @@
         "error_invalid_domain": "Selected domain is not valid",
         "alert_loading": "Creating new alias...",
         "alert_created": "Alias created: {alias}",
-        "context_menu": "Generate and copy new MailFlare alias"
+        "context_menu": "Generate and copy new MailFlare alias",
+        "alert_created_copied": "Alias created and copied: {alias}"
     },
     "import": {
         "title": "Import Aliases",
@@ -254,9 +247,7 @@
         "fetched_count": "Found {count, plural, one {# alias} other {# aliases}}",
         "select_all": "Select all",
         "deselect_all": "Deselect all",
-        "non_matching": "{count, plural, one {# alias} other {# aliases}} on other domains (not {domain}) will be skipped.",
         "non_matching_zones": "{count, plural, one {# alias is} other {# aliases are}} on domains not in your Cloudflare zones and cannot be imported.",
-        "no_domain": "no domain selected",
         "back": "Back",
         "next": "Next",
         "select_destination": "Select the forwarding destination for all imported aliases:",
@@ -286,7 +277,6 @@
         "destination_input": "Email address",
         "add": "Add",
         "empty": "None yet.",
-        "domains_description_account": "Domains you can create aliases on. The Worker's admin chooses which ones.",
         "shared": "Shared",
         "shared_label": "Share {domain} with accounts",
         "shared_hint": "Shared domains are available to every account on this Worker.",

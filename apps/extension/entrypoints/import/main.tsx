@@ -1,7 +1,7 @@
 import {
     MailflareProvider,
     ExtensionStorageAdapter,
-    createExtensionPersister,
+    createPersister,
     ImportWizard,
 } from "@mailflare/core";
 import messages from "@mailflare/core/i18n/messages/en.json";
@@ -11,7 +11,7 @@ import ReactDOM from "react-dom/client";
 import { migrateStorage } from "../../utils/migrate-storage";
 
 const storageAdapter = new ExtensionStorageAdapter();
-const persister = createExtensionPersister(storageAdapter);
+const persister = createPersister(storageAdapter);
 // Only English messages exist; format dates and numbers to match them.
 const locale = "en";
 

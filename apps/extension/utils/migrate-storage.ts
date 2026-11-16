@@ -46,6 +46,8 @@ async function migrate() {
         if (typeof value !== "string") continue;
         const parsed = parse(value);
         if (typeof parsed === "string") updates[key] = parsed;
+        // 1.x stored "nothing selected" as 'null'.
+        else if (parsed === null && value.trim() === "null") removals.push(key);
     }
     for (const key of OBJECTS) {
         const value = stored[key];

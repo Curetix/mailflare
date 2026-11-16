@@ -175,7 +175,7 @@ export async function rewriteInbound(
         ...passThrough(headers, { extra: PASS_THROUGH_INBOUND, ids: options.messageIds }),
     );
     // The aliases the message already passed through, then this one: how
-    // Mailflare Workers notice mail going in circles (see aliasHops).
+    // Mailflare Workers notice mail going in circles (see isLooping in email.ts).
     for (const value of getHeaders(headers, ALIAS_HEADER)) {
         rewritten.push({ name: ALIAS_HEADER, value });
     }

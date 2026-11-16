@@ -18,11 +18,14 @@ export default defineContentScript({
 
         chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             switch (message.command) {
+                case "ping":
+                    sendResponse(true);
+                    break;
                 case "copyText":
-                    navigator.clipboard.writeText(message.text).then(() => sendResponse(true));
-                    return true;
-                case "clearClipboard":
-                    navigator.clipboard.writeText("").then(() => sendResponse(true));
+                    navigator.clipboard.writeText(message.text).then(
+                        () => sendResponse(true),
+                        () => sendResponse(false),
+                    );
                     return true;
                 case "showAlert":
                     showAlert(message.alert);

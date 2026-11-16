@@ -32,7 +32,14 @@ export default defineConfig({
         description:
             "Create and manage email aliases using Cloudflare Email Routing directly from your browser.",
         // identity: signing in to a Mailflare Worker with an account.
-        permissions: ["contextMenus", "storage", "clipboardWrite", "activeTab", "identity"],
+        permissions: [
+            "contextMenus",
+            "storage",
+            "clipboardWrite",
+            "activeTab",
+            "identity",
+            "scripting",
+        ],
         host_permissions: ["https://api.cloudflare.com/*"],
         // The ID 1.x was published under, so Firefox users get the update.
         ...(browser === "firefox" && {

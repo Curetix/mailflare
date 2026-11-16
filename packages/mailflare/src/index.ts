@@ -93,10 +93,9 @@ export {
     StorageProvider,
     useStorage,
     WebStorageAdapter,
-    createWebPersister,
     ExtensionStorageAdapter,
     SessionStorageAdapter,
-    createExtensionPersister,
+    createPersister,
 } from "./storage";
 
 // Utils

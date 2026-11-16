@@ -1,7 +1,7 @@
 // Builds the Mailflare web app, locked to this Worker, into ./app (the
-// Worker's static assets). Outside the monorepo (for example in a copy made by
-// the deploy button) there is no app to build, and the Worker serves the API
-// only.
+// Worker's static assets). The deploy button copies the whole repository, so
+// the app is built there too; with apps/worker on its own there is no app to
+// build, and the Worker serves the API only.
 //
 //   node scripts/build-app.mjs          build the app
 //   node scripts/build-app.mjs --dev    only make sure ./app exists

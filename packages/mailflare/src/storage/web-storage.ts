@@ -1,6 +1,4 @@
-import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
-
-import { type StorageAdapter, StorageKeys } from "./storage";
+import type { StorageAdapter } from "./storage";
 
 export class WebStorageAdapter implements StorageAdapter {
     async get<T>(key: string): Promise<T | null> {
@@ -20,18 +18,4 @@ export class WebStorageAdapter implements StorageAdapter {
     async remove(key: string): Promise<void> {
         localStorage.removeItem(key);
     }
-}
-
-export function createWebPersister(adapter: StorageAdapter): Persister {
-    return {
-        persistClient: async (client: PersistedClient) => {
-            await adapter.set(StorageKeys.QueryCache, client);
-        },
-        restoreClient: async () => {
-            return (await adapter.get<PersistedClient>(StorageKeys.QueryCache)) ?? undefined;
-        },
-        removeClient: async () => {
-            await adapter.remove(StorageKeys.QueryCache);
-        },
-    };
 }
