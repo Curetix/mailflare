@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { authenticatedFromDomain, checkSender, cloudflareAuthResults } from "../src/auth";
-import { getHeader, parseAddressList, parseMessage, serializeMessage } from "../src/mime";
+import {
+    decodeWords,
+    getHeader,
+    parseAddressList,
+    parseMessage,
+    serializeMessage,
+} from "../src/mime";
 import { keyedReverseAddress, parseReverseTag, readableReverseAddress } from "../src/reverse";
 import { rewriteInbound, rewriteOutbound } from "../src/rewrite";
 
@@ -280,6 +286,46 @@ describe("reverse addresses", () => {
         expect(readableReverseAddress("a@me.test", "=x@shop.test")).toBeNull();
         expect(readableReverseAddress("a@me.test", "bob@[192.0.2.1]")).toBeNull();
         expect(keyedReverseAddress("a@me.test", "k3x9q2m7p4")).toBe("a+=k3x9q2m7p4@me.test");
+    });
+});
+
+describe("encoded words", () => {
+    it("decodes a character split across adjacent words as one text", () => {
+        // Senders wrap long encoded words, and a UTF-8 character may straddle two.
+        expect(decodeWords("=?UTF-8?Q?caf=C3?= =?UTF-8?Q?=A9?=")).toBe("café");
+        expect(decodeWords("=?UTF-8?B?w6k=?=\r\n =?UTF-8?B?w6k=?=")).toBe("éé");
+        // Bytes, not text: B and Q words of one charset belong together too.
+        expect(decodeWords("=?UTF-8?B?w4Q=?= =?UTF-8?Q?rger?=")).toBe("Ärger");
+    });
+
+    it("decodes words of different charsets on their own", () => {
+        expect(decodeWords("=?ISO-8859-1?Q?Andr=E9?= =?UTF-8?Q?=C3=A9?=")).toBe("Andréé");
+    });
+
+    it("drops whitespace between encoded words but keeps other text", () => {
+        expect(decodeWords("=?UTF-8?Q?one?= =?UTF-8?Q?two?=")).toBe("onetwo");
+        expect(decodeWords("=?UTF-8?Q?one?= and =?UTF-8?Q?=C3=A9?=")).toBe("one and é");
+        expect(decodeWords(" before =?UTF-8?Q?one?=")).toBe(" before one");
+    });
+
+    it("keeps malformed words instead of throwing", () => {
+        const broken = "=?UTF-8?B?!!!?=";
+        const withAddress = "Bob =?UTF-8?B?A?= <bob@shop.test>";
+        for (const value of [broken, "=?UTF-8?B?A?=", "=?UTF-8?B?%?=", withAddress]) {
+            expect(() => decodeWords(value)).not.toThrow();
+        }
+        // Left as they are, so the address beside them still parses.
+        expect(decodeWords(broken)).toBe(broken);
+        expect(decodeWords(withAddress)).toBe(withAddress);
+    });
+
+    it("parses a display name with a malformed word without throwing", () => {
+        expect(parseAddressList("=?UTF-8?B?!!!?= <bob@shop.test>")).toEqual([
+            { name: "=?UTF-8?B?!!!?=", address: "bob@shop.test" },
+        ]);
+        expect(parseAddressList("=?UTF-8?Q?caf=C3?= =?UTF-8?Q?=A9?= <bob@shop.test>")).toEqual([
+            { name: "café", address: "bob@shop.test" },
+        ]);
     });
 });
 

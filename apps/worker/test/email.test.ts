@@ -406,6 +406,20 @@ describe("aliases of accounts", () => {
 });
 
 describe("incoming mail, defensively", () => {
+    it("delivers mail whose display name is a broken encoded word", async () => {
+        await seedAlias("broken@out.test", OWNER);
+        // Parsing the owner check would throw on the malformed base64 before.
+        const { message, sent } = await receive(
+            incoming({
+                to: "broken+bob=shop.test@out.test",
+                from: "=?UTF-8?B?!!!?= <bob@shop.test>",
+                headers: [cloudflarePass("shop.test")],
+            }),
+        );
+        expect(message.setReject).not.toHaveBeenCalled();
+        expect(sent).toEqual([{ from: "broken@out.test", to: OWNER }]);
+    });
+
     it("forwards mail without a sender (bounces) instead of re-sending it from the alias", async () => {
         await seedAlias("bounce@out.test", OWNER);
         const { message, sent } = await receive(incoming({ to: "bounce@out.test", from: "" }));

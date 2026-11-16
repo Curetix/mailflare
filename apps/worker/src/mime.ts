@@ -66,32 +66,80 @@ const unfold = (value: string) => value.replace(/\r?\n[ \t]+/g, " ");
 
 // RFC 2047 encoded words (=?charset?B|Q?text?=) in display names.
 
-function decodeWord(charset: string, encoding: string, text: string): string {
-    let bytes: Uint8Array;
+const ENCODED_WORD = /=\?([^?]+)\?([BQ])\?([^?]*)\?=/gi;
+
+/** The bytes of one encoded word, or null if its base64 data is malformed. */
+function wordBytes(encoding: string, text: string): Uint8Array | null {
+    let raw: string;
     if (encoding.toUpperCase() === "B") {
-        bytes = Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+        try {
+            raw = atob(text);
+        } catch {
+            // Broken words are common in mail from some senders: leave them as they are.
+            return null;
+        }
     } else {
-        const raw = text
+        raw = text
             .replace(/_/g, " ")
             .replace(/=([0-9A-F]{2})/gi, (_, hex: string) =>
                 String.fromCharCode(Number.parseInt(hex, 16)),
             );
-        bytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    }
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+function decodeBytes(charset: string, parts: Uint8Array[]): string {
+    const bytes = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+    let offset = 0;
+    for (const part of parts) {
+        bytes.set(part, offset);
+        offset += part.length;
     }
     try {
         return new TextDecoder(charset).decode(bytes);
     } catch {
+        // An unknown charset: UTF-8 is the best guess left.
         return new TextDecoder().decode(bytes);
     }
 }
 
+/**
+ * Decodes the encoded words of a header value. Adjacent words with the same
+ * charset are one text: a character may be split across them (RFC 2047), and
+ * decoding each word on its own would turn it into replacement characters.
+ */
 export function decodeWords(value: string): string {
-    return value
-        .replace(/\?=\s+=\?/g, "?==?") // Whitespace between encoded words is dropped.
-        .replace(
-            /=\?([^?]+)\?([BQ])\?([^?]*)\?=/gi,
-            (_, charset: string, enc: string, text: string) => decodeWord(charset, enc, text),
-        );
+    let out = "";
+    let last = 0;
+    let group: { charset: string; bytes: Uint8Array[] } | null = null;
+
+    for (const match of value.matchAll(ENCODED_WORD)) {
+        const gap = value.slice(last, match.index);
+        // Whitespace between two encoded words is not displayed.
+        const continues = group !== null && gap.trim() === "";
+        if (!continues) {
+            if (group) out += decodeBytes(group.charset, group.bytes);
+            group = null;
+            out += gap;
+        }
+        last = match.index + match[0].length;
+        const charset = (match[1] ?? "").toLowerCase();
+        const bytes = wordBytes(match[2] ?? "", match[3] ?? "");
+        if (!bytes) {
+            if (group) out += decodeBytes(group.charset, group.bytes);
+            group = null;
+            out += match[0];
+            continue;
+        }
+        if (group !== null && group.charset === charset) {
+            group.bytes.push(bytes);
+        } else {
+            if (group) out += decodeBytes(group.charset, group.bytes);
+            group = { charset, bytes: [bytes] };
+        }
+    }
+    if (group) out += decodeBytes(group.charset, group.bytes);
+    return out + value.slice(last);
 }
 
 /** Quotes a display name, encoding it if it isn't plain ASCII. */
