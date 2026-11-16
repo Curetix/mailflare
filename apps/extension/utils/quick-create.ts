@@ -28,6 +28,23 @@ const ICONS: Record<ButtonState, string> = {
 
 const LABEL = "Create MailFlare alias for this site";
 
+/** The host element's own styles, all set as important. */
+const HOST_STYLES: Record<string, string> = {
+    all: "initial",
+    position: "fixed",
+    "z-index": "2147483647",
+    display: "block",
+    margin: "0",
+    padding: "0",
+    border: "0",
+    opacity: "1",
+    visibility: "visible",
+    transform: "none",
+    filter: "none",
+    "clip-path": "none",
+    "pointer-events": "auto",
+};
+
 // Values taken from the Mailflare Astryx theme (neutral + orange accent).
 const STYLES = `
 button {
@@ -73,9 +90,12 @@ export function initQuickCreate(options: {
     let frame = 0;
 
     const host = document.createElement("mailflare-quick-create");
-    // Inline styles beat page CSS that targets the host element itself.
-    host.style.cssText =
-        "all:initial;position:fixed;z-index:2147483647;margin:0;padding:0;border:0;display:block;";
+    // Important inline styles beat page CSS targeting the host element, even
+    // with !important: a page can't make the button invisible or move it
+    // under something the user means to click.
+    const setHostStyle = (name: string, value: string) =>
+        host.style.setProperty(name, value, "important");
+    for (const [name, value] of Object.entries(HOST_STYLES)) setHostStyle(name, value);
     const shadow = host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.textContent = STYLES;
@@ -100,9 +120,10 @@ export function initQuickCreate(options: {
         if (rect.width === 0 || rect.height === 0) return hide();
         const size = Math.max(MIN_SIZE, Math.min(MAX_SIZE, rect.height - 8));
         const inset = Math.max(4, (rect.height - size) / 2);
-        host.style.setProperty("--size", `${size}px`);
-        host.style.top = `${rect.top + (rect.height - size) / 2}px`;
-        host.style.left = `${rect.right - size - inset}px`;
+        // On the button itself: a custom property on the host could be set by the page.
+        button.style.setProperty("--size", `${size}px`);
+        setHostStyle("top", `${rect.top + (rect.height - size) / 2}px`);
+        setHostStyle("left", `${rect.right - size - inset}px`);
     }
 
     const schedulePosition = () => {
@@ -111,7 +132,7 @@ export function initQuickCreate(options: {
 
     // Follows the app's theme setting; light-dark() in the CSS resolves against it.
     function applyTheme() {
-        host.style.colorScheme = colorScheme(settings);
+        setHostStyle("color-scheme", colorScheme(settings));
     }
 
     function show(input: HTMLInputElement) {

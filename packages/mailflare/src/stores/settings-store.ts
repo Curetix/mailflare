@@ -6,7 +6,6 @@ import { StorageKeys } from "../storage/storage";
 export type Settings = {
     ruleFilter: boolean;
     copyAlias: boolean;
-    devTools: boolean;
     showCreateButton: boolean;
     theme: "dark" | "light" | "system";
 };
@@ -14,7 +13,6 @@ export type Settings = {
 const defaultSettings: Settings = {
     ruleFilter: true,
     copyAlias: true,
-    devTools: false,
     showCreateButton: false,
     theme: "system",
 };

@@ -1,6 +1,4 @@
-import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
-
-import { type StorageAdapter, StorageKeys } from "./storage";
+import type { StorageAdapter } from "./storage";
 
 declare const chrome: {
     storage: {
@@ -45,18 +43,4 @@ export class SessionStorageAdapter implements StorageAdapter {
     async remove(key: string): Promise<void> {
         await chrome.storage.session.remove(key);
     }
-}
-
-export function createExtensionPersister(adapter: StorageAdapter): Persister {
-    return {
-        persistClient: async (client: PersistedClient) => {
-            await adapter.set(StorageKeys.QueryCache, client);
-        },
-        restoreClient: async () => {
-            return (await adapter.get<PersistedClient>(StorageKeys.QueryCache)) ?? undefined;
-        },
-        removeClient: async () => {
-            await adapter.remove(StorageKeys.QueryCache);
-        },
-    };
 }

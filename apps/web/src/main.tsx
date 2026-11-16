@@ -2,7 +2,7 @@ import {
     MailflareProvider,
     MailflareApp,
     WebStorageAdapter,
-    createWebPersister,
+    createPersister,
 } from "@mailflare/core";
 import messages from "@mailflare/core/i18n/messages/en.json";
 import { StrictMode } from "react";
@@ -26,7 +26,7 @@ registerSW({
 });
 
 const storageAdapter = new WebStorageAdapter();
-const persister = createWebPersister(storageAdapter);
+const persister = createPersister(storageAdapter);
 
 // Only English messages exist; format dates and numbers to match them.
 const locale = "en";

@@ -7,6 +7,7 @@ import {
     type Alias,
     type AliasSettings,
 } from "@mailflare/core/headless";
+import messages from "@mailflare/core/i18n/messages/en.json";
 import { defineBackground } from "wxt/utils/define-background";
 
 import type { ContentScriptAlert } from "../utils/alerts";
@@ -14,13 +15,32 @@ import { migrateStorage } from "../utils/migrate-storage";
 
 type TabMessage =
     | { command: "copyText"; text: string }
-    | { command: "clearClipboard" }
     | { command: "showAlert"; alert: ContentScriptAlert }
     | { command: "dismissAlert"; id: number };
 
 async function sendTabMessage(tabId: number | undefined, message: TabMessage) {
     if (!tabId) return;
     return chrome.tabs.sendMessage(tabId, message);
+}
+
+/**
+ * Makes sure the content script runs in the tab: tabs opened before the
+ * extension was installed or updated don't have it yet. The context menu
+ * click grants activeTab for this.
+ */
+async function ensureContentScript(tabId: number) {
+    const ready = await chrome.tabs
+        .sendMessage(tabId, { command: "ping" })
+        .then(() => true)
+        .catch(() => false);
+    if (ready) return;
+    const files = chrome.runtime.getManifest().content_scripts?.[0]?.js ?? [];
+    await chrome.scripting.executeScript({ target: { tabId }, files });
+}
+
+/** The background's texts, from the app's messages ({alias} filled in). */
+function text(key: keyof typeof messages.background, alias = "") {
+    return messages.background[key].replace("{alias}", alias);
 }
 
 async function generateAliasInBackground(hostname: string): Promise<Alias> {
@@ -37,11 +57,11 @@ async function generateAliasInBackground(hostname: string): Promise<Alias> {
     const zoneId = storage[StorageKeys.ZoneId] as string | undefined;
     const aliasSettings = storage[StorageKeys.AliasSettings] as AliasSettings | undefined;
 
-    if (!apiToken) throw new Error("You are not logged in to MailFlare");
-    if (!zoneId) throw new Error("No domain selected in MailFlare");
-    if (!aliasSettings?.destination) throw new Error("No destination configured in MailFlare");
+    if (!apiToken) throw new Error(text("error_not_logged_in"));
+    if (!zoneId) throw new Error(text("error_no_domain"));
+    if (!aliasSettings?.destination) throw new Error(text("error_no_destination"));
     if (aliasSettings.format === "custom" || aliasSettings.prefixFormat === "custom") {
-        throw new Error("Cannot generate alias with custom format from background");
+        throw new Error(text("error_custom"));
     }
 
     const backend = createBackend(
@@ -50,14 +70,18 @@ async function generateAliasInBackground(hostname: string): Promise<Alias> {
             : { kind: "cloudflare", token: apiToken },
     );
     const zone = (await backend.listZones()).find((z) => z.id === zoneId);
-    if (!zone) throw new Error("Selected domain is not valid");
+    if (!zone) throw new Error(text("error_invalid_domain"));
 
-    return backend.createAlias({
+    const alias = await backend.createAlias({
         zoneId,
         address: `${generateAliasAddress({ ...aliasSettings, hostname })}@${zone.name}`,
         destination: aliasSettings.destination,
         description: hostname,
     });
+    // The popup's cached list doesn't have it yet: load it fresh next time.
+    const cache: string[] = [StorageKeys.QueryCache];
+    await chrome.storage.local.remove(cache);
+    return alias;
 }
 
 /**
@@ -99,31 +123,40 @@ export default defineBackground(() => {
     chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         if (info.menuItemId !== "mailflare-generate" || !info.pageUrl) return;
 
+        const tabId = tab?.id;
+        if (tabId === undefined) return;
         const loadingAlertId = Date.now();
-        await sendTabMessage(tab?.id, {
+        // Messages to the page are best effort: the alias is created either way.
+        const notify = (message: TabMessage) => sendTabMessage(tabId, message).catch(() => false);
+        await ensureContentScript(tabId).catch(() => {});
+        await notify({
             command: "showAlert",
-            alert: { id: loadingAlertId, message: "Creating new alias...", isLoading: true },
+            alert: { id: loadingAlertId, message: text("alert_loading"), isLoading: true },
         });
 
         try {
             const alias = await generateAliasInBackground(new URL(info.pageUrl).hostname);
-            await sendTabMessage(tab?.id, {
+            await notify({ command: "dismissAlert", id: loadingAlertId });
+            const copied = (await notify({ command: "copyText", text: alias.address })) === true;
+            await notify({
                 command: "showAlert",
                 alert: {
                     id: Date.now(),
                     type: "success",
-                    message: `Alias created: ${alias.address}`,
+                    message: text(copied ? "alert_created_copied" : "alert_created", alias.address),
                     timeout: 5000,
                 },
             });
-            await sendTabMessage(tab?.id, { command: "copyText", text: alias.address });
-        } catch (error: any) {
-            await sendTabMessage(tab?.id, {
+        } catch (error) {
+            await notify({ command: "dismissAlert", id: loadingAlertId });
+            await notify({
                 command: "showAlert",
-                alert: { id: Date.now(), type: "error", message: error.message },
+                alert: {
+                    id: Date.now(),
+                    type: "error",
+                    message: error instanceof Error ? error.message : String(error),
+                },
             });
-        } finally {
-            await sendTabMessage(tab?.id, { command: "dismissAlert", id: loadingAlertId });
         }
     });
 
@@ -167,7 +200,7 @@ export default defineBackground(() => {
 
     chrome.runtime.onInstalled.addListener(() => {
         chrome.contextMenus.create({
-            title: "Generate and copy new MailFlare alias",
+            title: text("context_menu"),
             contexts: ["page", "editable"],
             // Where the content script runs, which shows the result and copies the alias.
             documentUrlPatterns: ["https://*/*"],

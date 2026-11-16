@@ -178,7 +178,7 @@ export function AliasCreateDialog({ open, onClose }: Props) {
 
         let address = "";
         for (let i = 0; i < 3; i++) {
-            address = `${generateAliasAddress({
+            const local = generateAliasAddress({
                 format: watchAll.format,
                 characterCount: watchAll.characterCount,
                 wordCount: watchAll.wordCount,
@@ -186,7 +186,10 @@ export function AliasCreateDialog({ open, onClose }: Props) {
                 customPrefix: watchAll.customPrefix,
                 prefixFormat: watchAll.prefixFormat,
                 hostname,
-            })}@${domain}`;
+            });
+            // "Website Domain" without a website (e.g. on a browser page).
+            if (!local) return null;
+            address = `${local}@${domain}`;
 
             if (!aliases.data?.some((a) => a.address === address)) break;
         }
@@ -225,7 +228,8 @@ export function AliasCreateDialog({ open, onClose }: Props) {
             characterCount: watchAll.characterCount,
             wordCount: watchAll.wordCount,
             separator: watchAll.separator,
-            prefixFormat: watchAll.prefixFormat,
+            // Without a website, the prefix was only switched off for this alias.
+            prefixFormat: hostname ? watchAll.prefixFormat : aliasSettings.prefixFormat,
             destination: watchAll.destination,
         });
     }

@@ -1,5 +1,5 @@
 // Aliases stored by a self-hosted Mailflare Worker (apps/worker), managed
-// through its HTTP API with the Worker's admin token.
+// through its HTTP API with the Worker's admin token or an account's session.
 
 import type * as Api from "@mailflare/worker/api";
 import ky, { isHTTPError, type KyInstance } from "ky";

@@ -23,6 +23,12 @@ Copies new aliases to your clipboard, from the popup and the context menu.
 
 Reads the current website's address, for domain-based aliases and descriptions.
 
+### `scripting`
+
+When you use the context menu in a tab that was open before MailFlare was installed or updated, the
+content script isn't running there yet. MailFlare starts it in that tab (only after your click),
+so it can show the result and copy the alias.
+
 ### `identity`
 
 Signs you in to an account on a [Mailflare Worker](../guides/worker-mode.md): the Worker's sign-in

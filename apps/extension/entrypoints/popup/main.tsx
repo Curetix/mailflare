@@ -3,8 +3,9 @@ import {
     MailflareApp,
     ExtensionStorageAdapter,
     SessionStorageAdapter,
-    createExtensionPersister,
+    createPersister,
     type CloudflareAccess,
+    useUIStore,
 } from "@mailflare/core";
 import messages from "@mailflare/core/i18n/messages/en.json";
 import React from "react";
@@ -14,7 +15,7 @@ import { migrateStorage } from "../../utils/migrate-storage";
 
 const storageAdapter = new ExtensionStorageAdapter();
 const sessionStorageAdapter = new SessionStorageAdapter();
-const persister = createExtensionPersister(storageAdapter);
+const persister = createPersister(storageAdapter);
 // Only English messages exist; format dates and numbers to match them.
 const locale = "en";
 
@@ -40,8 +41,17 @@ const cloudflareAccess: CloudflareAccess = {
     request: () => chrome.permissions.request(cloudflareApi),
 };
 
+/** The website in the current tab, for website-based aliases (activeTab grants its URL). */
+async function currentHostname() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url) return "";
+    const url = new URL(tab.url);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.hostname : "";
+}
+
 // 1.x data has to be converted before the app reads it.
-await migrateStorage();
+const [hostname] = await Promise.all([currentHostname().catch(() => ""), migrateStorage()]);
+useUIStore.getState().setHostname(hostname);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
