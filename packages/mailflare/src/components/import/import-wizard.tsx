@@ -9,6 +9,7 @@ import { List, ListItem } from "@astryxdesign/core/List";
 import { ProgressBar } from "@astryxdesign/core/ProgressBar";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Step, Stepper } from "@astryxdesign/core/Stepper";
+import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -47,13 +48,17 @@ export function ImportWizard({ standalone = true }: { standalone?: boolean }) {
     const [aliases, setAliases] = useState<ImportedAlias[]>([]);
     const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
     const [targetDestination, setTargetDestination] = useState("");
+    // Aliases turned off at the other service are usually not worth bringing over.
+    const [onlyEnabled, setOnlyEnabled] = useState(true);
     const [result, setResult] = useState<ImportResult | null>(null);
 
     // Every domain aliases can be created on, Email Routing subdomains included.
     const domainToZoneId: Record<string, string> = {};
     for (const d of domains.data ?? []) domainToZoneId[d.domain.toLowerCase()] = d.zoneId;
     const importable = (alias: ImportedAlias) => alias.domain.toLowerCase() in domainToZoneId;
-    const matchingAliases = aliases.filter(importable);
+    const selectable = (alias: ImportedAlias) =>
+        importable(alias) && (!onlyEnabled || alias.enabled);
+    const matchingAliases = aliases.filter(selectable);
     const nonMatchingCount = aliases.length - matchingAliases.length;
 
     const handleVerifyAndFetch = useCallback(async () => {
@@ -68,7 +73,7 @@ export function ImportWizard({ standalone = true }: { standalone?: boolean }) {
             }
             const fetched = await fetchAliases(service, serviceToken);
             setAliases(fetched);
-            setSelectedEmails(new Set(fetched.filter(importable).map((a) => a.email)));
+            setSelectedEmails(new Set(fetched.filter(selectable).map((a) => a.email)));
             setVerifying(false);
             if (fetched.length > 0) setStep("preview");
             else setTokenError(t("no_aliases_found"));
@@ -76,7 +81,21 @@ export function ImportWizard({ standalone = true }: { standalone?: boolean }) {
             setTokenError(t("fetch_error"));
             setVerifying(false);
         }
-    }, [service, serviceToken, verifyServiceToken, fetchAliases, domains.data, t]);
+    }, [service, serviceToken, verifyServiceToken, fetchAliases, domains.data, onlyEnabled, t]);
+
+    /** Turning it on unselects disabled aliases; turning it off selects them. */
+    const changeOnlyEnabled = (value: boolean) => {
+        setOnlyEnabled(value);
+        const disabled = aliases.filter((a) => importable(a) && !a.enabled).map((a) => a.email);
+        setSelectedEmails((prev) => {
+            const next = new Set(prev);
+            for (const email of disabled) {
+                if (value) next.delete(email);
+                else next.add(email);
+            }
+            return next;
+        });
+    };
 
     const toggleAlias = useCallback((email: string) => {
         setSelectedEmails((prev) => {
@@ -203,11 +222,20 @@ export function ImportWizard({ standalone = true }: { standalone?: boolean }) {
                         />
                     </HStack>
 
+                    <Switch
+                        label={t("only_enabled")}
+                        description={t("only_enabled_hint", {
+                            service: service === "addy" ? "addy.io" : "SimpleLogin",
+                        })}
+                        value={onlyEnabled}
+                        onChange={changeOnlyEnabled}
+                    />
+
                     <Card padding={1}>
                         <div style={{ maxHeight: 400, overflowY: "auto" }}>
                             <List density="compact" hasDividers>
                                 {aliases.map((alias) => {
-                                    const canImport = importable(alias);
+                                    const canImport = selectable(alias);
                                     return (
                                         <ListItem
                                             key={alias.email}
