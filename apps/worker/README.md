@@ -16,12 +16,17 @@ To set it up and connect the Mailflare app, see the
 - **Known, enabled alias:** re-sent to its destination, from the alias. The
   sender and other recipients become _reverse addresses_ such as
   `alias+bob=shop.com@your.domain`, shown as `"Bob (bob at shop.com)"`, so
-  replies and reply-all go out through the alias. An `X-Mailflare-Alias` header
-  names the alias for mailbox filters.
+  replies and reply-all go out through the alias (up to 50 addresses per
+  message). An `X-Mailflare-Alias` header names the alias for mailbox filters.
+  Mailing-list headers keep their web links, not their `mailto:` ones, which
+  would mail the list from your own address. Bounces are forwarded unchanged.
 - **Replies:** mail from the alias owner to a reverse address is sent to the
   contact behind it, from the alias, after checking Cloudflare's DMARC result
-  for the owner's domain. Mail to a reverse address from anyone else is
-  delivered to the owner like any other mail.
+  for the owner's domain and that the message names the reverse address in
+  To or Cc. It gets a new Message-ID on the alias's domain (the original
+  usually names your mail provider); replies are mapped back, so threads stay
+  intact. Mail to a reverse address from anyone else, or that fails these
+  checks, is delivered to the owner like any other mail.
 - **Subaddresses:** `alias+anything@domain` is delivered to `alias@domain`.
 - **Unknown or disabled alias:** rejected with the same "Address does not
   exist" reason, so senders can't tell which addresses exist. Mail to disabled
@@ -34,8 +39,9 @@ To set it up and connect the Mailflare app, see the
   unchanged with `message.forward()`, which only reaches destinations verified
   in Cloudflare Email Routing. Replying through the alias then isn't possible.
 
-A daily cron trigger deletes expired sign-in links and sessions and old
-rate-limit and sending counters.
+A daily cron trigger deletes expired sign-in links and sessions, sign-ups
+nobody confirmed, old rate-limit and sending counters, and Message-ID mappings
+older than a year.
 
 Re-sending to destinations verified in Cloudflare is free. Sending to anyone
 else (replies, and destinations of accounts) needs the Workers Paid plan and
@@ -58,8 +64,16 @@ own (via `identity.launchWebAuthFlow`).
   counts as confirmed.
 - Accounts only see and change their own aliases and destinations; the admin
   token doesn't see accounts' data either.
-- Accounts can only reply to people who emailed the alias first, and only up
-  to a daily limit, so your domains can't be used to spam strangers.
+- Accounts can only send to people who emailed the alias themselves, with a
+  sender address Cloudflare authenticated (DMARC, or SPF on the same domain),
+  and only up to a daily limit. Others in To or Cc of such mail get reverse
+  addresses for reply-all, but accounts can't start conversations with them.
+- Mailboxes like `postmaster@`, `admin@` or `webmaster@` (which certificate
+  authorities use to verify domains) are reserved for admins, as is the
+  sender of account emails. The address of a deleted alias stays with its
+  owner: nobody else can create it again, except admins.
+- Confirmation emails for inboxes are limited to 3 per inbox and 10 per
+  account a day.
 - Accounts with the `admin` role have no limits, may use every domain and
   manage domains and accounts, but don't see other accounts' aliases or
   inboxes either. `ADMIN_EMAILS` are the first admins: an account with one of

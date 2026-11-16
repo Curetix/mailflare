@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { checkSender, cloudflareDmarc } from "../src/auth";
+import { authenticatedFromDomain, checkSender, cloudflareAuthResults } from "../src/auth";
 import { getHeader, parseAddressList, parseMessage, serializeMessage } from "../src/mime";
-import { parseReverseTag, readableReverseAddress } from "../src/reverse";
+import { keyedReverseAddress, parseReverseTag, readableReverseAddress } from "../src/reverse";
 import { rewriteInbound, rewriteOutbound } from "../src/rewrite";
 
 const encoder = new TextEncoder();
@@ -151,7 +151,9 @@ describe("rewriteOutbound", () => {
             'To: "Bob (bob at shop.test)" <alias+bob=shop.test@me.test>',
             "Cc: friend@other.test",
             "Subject: Re: Order",
+            "Message-ID: <abc@mail.inbox.test>",
             "In-Reply-To: <1@shop.test>",
+            "References: <0@mail.inbox.test> <1@shop.test>",
             "X-Pm-Origin: internal",
         ]);
 
@@ -159,12 +161,19 @@ describe("rewriteOutbound", () => {
             alias: "alias@me.test",
             fromReverse: async (address) =>
                 address === "alias+bob=shop.test@me.test" ? "bob@shop.test" : null,
+            messageId: "<new@me.test>",
+            messageIds: new Map([["<0@mail.inbox.test>", "<earlier@me.test>"]]),
         });
 
         expect(getHeader(out.headers, "From")).toBe("alias@me.test");
         expect(getHeader(out.headers, "To")).toBe('"Bob" <bob@shop.test>');
         expect(getHeader(out.headers, "Cc")).toBe("friend@other.test");
         expect(getHeader(out.headers, "In-Reply-To")).toBe("<1@shop.test>");
+        // No Message-ID on the owner's mail domain, earlier ones as the contact saw them.
+        expect(out.headers.filter((h) => h.name === "Message-ID")).toEqual([
+            { name: "Message-ID", value: "<new@me.test>" },
+        ]);
+        expect(getHeader(out.headers, "References")).toBe("<earlier@me.test> <1@shop.test>");
         for (const dropped of ["received", "reply-to", "x-pm-origin"]) {
             expect(names(out.headers)).not.toContain(dropped);
         }
@@ -174,16 +183,18 @@ describe("rewriteOutbound", () => {
 describe("owner check", () => {
     const headers = (lines: string[]) => message(lines).headers;
 
+    const reverse = "alias+bob=shop.test@me.test";
+
     it("reads only the topmost Authentication-Results, and only Cloudflare's", () => {
+        const [dmarc] = cloudflareAuthResults(
+            headers([
+                "Authentication-Results: mx.cloudflare.net;\r\n dmarc=pass header.from=inbox.test",
+            ]),
+        )!;
+        expect(dmarc).toMatchObject({ method: "dmarc", result: "pass" });
+        expect(dmarc!.properties.get("header.from")).toBe("inbox.test");
         expect(
-            cloudflareDmarc(
-                headers([
-                    "Authentication-Results: mx.cloudflare.net;\r\n dmarc=pass header.from=inbox.test",
-                ]),
-            ),
-        ).toEqual({ result: "pass", headerFrom: "inbox.test" });
-        expect(
-            cloudflareDmarc(
+            cloudflareAuthResults(
                 headers([
                     "Authentication-Results: spoof.example; dmarc=pass",
                     "Authentication-Results: mx.cloudflare.net; dmarc=pass header.from=inbox.test",
@@ -192,18 +203,105 @@ describe("owner check", () => {
         ).toBeNull();
     });
 
+    it("reads each result on its own, not words from other results or comments", () => {
+        const results = cloudflareAuthResults(
+            headers([
+                "Authentication-Results: mx.cloudflare.net; dkim=pass header.d=x.test header.s=dmarc=pass (dmarc=pass header.from=inbox.test); dmarc=fail header.from=evil.test",
+            ]),
+        )!;
+        const dmarc = results.find((r) => r.method === "dmarc");
+        expect(dmarc?.result).toBe("fail");
+        expect(dmarc?.properties.get("header.from")).toBe("evil.test");
+    });
+
     it("accepts bounce-style envelope senders on the owner's domain", () => {
         const lines = [
             "From: me@inbox.test",
+            `To: ${reverse}`,
             "Authentication-Results: mx.cloudflare.net; dmarc=pass header.from=inbox.test",
         ];
-        expect(checkSender(headers(lines), "bounce+123@mail.inbox.test", "me@inbox.test")).toEqual({
-            owner: true,
-            authenticated: true,
+        expect(
+            checkSender(headers(lines), "bounce+123@mail.inbox.test", "me@inbox.test", reverse),
+        ).toEqual({ owner: true, authenticated: true });
+        expect(checkSender(headers(lines), "me@evil.test", "me@inbox.test", reverse)).toMatchObject(
+            { owner: true, authenticated: false },
+        );
+    });
+
+    it("needs header.from, and the reverse address it was delivered to in To or Cc", () => {
+        const withoutHeaderFrom = [
+            "From: me@inbox.test",
+            `To: ${reverse}`,
+            "Authentication-Results: mx.cloudflare.net; dmarc=pass",
+        ];
+        expect(
+            checkSender(headers(withoutHeaderFrom), "me@inbox.test", "me@inbox.test", reverse),
+        ).toMatchObject({ authenticated: false });
+        // A signed message of the owner, replayed to another reverse address.
+        const replayed = [
+            "From: me@inbox.test",
+            `To: ${reverse}`,
+            "Authentication-Results: mx.cloudflare.net; dmarc=pass header.from=inbox.test",
+        ];
+        expect(
+            checkSender(
+                headers(replayed),
+                "me@inbox.test",
+                "me@inbox.test",
+                "alias+victim=else.test@me.test",
+            ),
+        ).toMatchObject({ authenticated: false, reason: "recipient not in To or Cc" });
+    });
+
+    it("authenticates a sender by DMARC, or by SPF on the From domain", () => {
+        const from = (auth: string) =>
+            authenticatedFromDomain(
+                headers([
+                    "From: bob@shop.test",
+                    `Authentication-Results: mx.cloudflare.net; ${auth}`,
+                ]),
+            );
+        expect(from("dmarc=pass header.from=shop.test")).toBe("shop.test");
+        expect(from("spf=pass smtp.mailfrom=bounce@mail.shop.test; dmarc=none")).toBe("shop.test");
+        expect(from("spf=pass smtp.mailfrom=me@throwaway.test; dmarc=none")).toBeNull();
+        expect(from("dmarc=pass header.from=throwaway.test")).toBeNull();
+    });
+});
+
+describe("reverse addresses", () => {
+    it("use the readable form only when it reads back as the same contact", () => {
+        expect(readableReverseAddress("a@me.test", "bob@shop.xn--p1ai")).toBe(
+            "a+bob=shop.xn--p1ai@me.test",
+        );
+        expect(parseReverseTag("bob=shop.xn--p1ai")).toEqual({
+            kind: "address",
+            contact: "bob@shop.xn--p1ai",
         });
-        expect(checkSender(headers(lines), "me@evil.test", "me@inbox.test")).toMatchObject({
-            owner: true,
-            authenticated: false,
+        expect(readableReverseAddress("a@me.test", "=x@shop.test")).toBeNull();
+        expect(readableReverseAddress("a@me.test", "bob@[192.0.2.1]")).toBeNull();
+        expect(keyedReverseAddress("a@me.test", "k3x9q2m7p4")).toBe("a+=k3x9q2m7p4@me.test");
+    });
+});
+
+describe("rewriteInbound extras", () => {
+    it("drops mailto list links, leaves out recipients without a reverse address, maps IDs back", async () => {
+        const original = message([
+            "From: news@shop.test",
+            "To: alias@me.test, other@shop.test",
+            "List-Unsubscribe: <mailto:unsub@shop.test>, <https://shop.test/unsub>",
+            "List-Post: <mailto:list@shop.test>",
+            "In-Reply-To: <sent@me.test>",
+        ]);
+        const out = await rewriteInbound(original, {
+            alias: "alias@me.test",
+            envelopeFrom: "news@shop.test",
+            toReverse: async (contact) =>
+                contact === "news@shop.test" ? "alias+news=shop.test@me.test" : null,
+            messageIds: new Map([["<sent@me.test>", "<original@mail.inbox.test>"]]),
         });
+        expect(getHeader(out.headers, "List-Unsubscribe")).toBe("<https://shop.test/unsub>");
+        expect(names(out.headers)).not.toContain("list-post");
+        expect(getHeader(out.headers, "To")).toBe("alias@me.test");
+        expect(getHeader(out.headers, "In-Reply-To")).toBe("<original@mail.inbox.test>");
     });
 });

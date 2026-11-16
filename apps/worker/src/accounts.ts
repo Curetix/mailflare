@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 
 import { splitAddress } from "./addresses";
 import { createDb, type Db, schema } from "./db";
+import { retireAddresses } from "./destinations";
 import { type AccountEmail, sendAccountEmail } from "./mailer";
 import { getSettings } from "./settings";
 
@@ -80,7 +81,20 @@ export function createAuth(
         advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
         // Accounts can delete themselves (their aliases and inboxes go with
         // them); with a password, or within a day of signing in.
-        user: { deleteUser: { enabled: true } },
+        user: {
+            deleteUser: {
+                enabled: true,
+                // The aliases go, but their addresses stay reserved for the
+                // account's owner (they may come back).
+                beforeDelete: async (user) => {
+                    const owned = await db.query.aliases.findMany({
+                        where: { userId: user.id },
+                        columns: { address: true, userId: true },
+                    });
+                    await retireAddresses(db, owned);
+                },
+            },
+        },
         emailAndPassword: {
             enabled: true,
             requireEmailVerification: true,

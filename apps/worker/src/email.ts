@@ -8,12 +8,18 @@
 //   alias's contacts (people who mailed it), within a daily limit.
 
 import { EmailMessage } from "cloudflare:email";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { normalizeAddress, splitAddress } from "./addresses";
-import { checkSender } from "./auth";
+import { authenticatedFromDomain, checkSender } from "./auth";
 import { createDb, type Db, schema } from "./db";
-import { getHeaders, type ParsedMessage, parseMessage, serializeMessage } from "./mime";
+import {
+    getHeaders,
+    parseAddressList,
+    type ParsedMessage,
+    parseMessage,
+    serializeMessage,
+} from "./mime";
 import {
     keyedReverseAddress,
     parseReverseTag,
@@ -21,7 +27,15 @@ import {
     readableReverseAddress,
     type ReverseTarget,
 } from "./reverse";
-import { ALIAS_HEADER, rewriteInbound, rewriteOutbound } from "./rewrite";
+import {
+    ALIAS_HEADER,
+    correspondents,
+    messageIdsIn,
+    referencedIds,
+    rewriteInbound,
+    rewriteOutbound,
+    senderOf,
+} from "./rewrite";
 import { getSettings } from "./settings";
 
 export { ALIAS_HEADER };
@@ -85,19 +99,100 @@ function record(db: Db, aliasId: string, outcome: Outcome) {
         .where(eq(aliases.id, aliasId));
 }
 
-/** Records a contact of the alias; returns its short key. */
-async function contactKey(db: Db, aliasId: string, email: string): Promise<string> {
+/** Addresses of one message that get reverse addresses; the rest are left out. */
+export const MAX_CONTACTS_PER_MESSAGE = 50;
+
+/** Splits a list for D1, which binds at most 100 parameters per statement. */
+function chunks<T>(items: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+    return out;
+}
+
+/**
+ * Records contacts of the alias (lowercase addresses), marking `replyable`
+ * ones as people the owner may send to; returns each contact's short key.
+ */
+async function rememberContacts(
+    db: Db,
+    aliasId: string,
+    emails: string[],
+    replyable: Set<string>,
+): Promise<Map<string, string>> {
     const { reverseContacts } = schema;
-    const where = and(eq(reverseContacts.aliasId, aliasId), eq(reverseContacts.email, email));
-    const [existing] = await db.select().from(reverseContacts).where(where);
-    if (existing) return existing.key;
-    await db
-        .insert(reverseContacts)
-        .values({ key: randomKey(), aliasId, email })
-        .onConflictDoNothing();
-    // Re-read: a concurrent message may have inserted the contact first.
-    const [row] = await db.select().from(reverseContacts).where(where);
-    return row!.key;
+    const keys = new Map<string, string>();
+    if (emails.length === 0) return keys;
+    for (const chunk of chunks(emails, 15)) {
+        await db
+            .insert(reverseContacts)
+            .values(
+                chunk.map((email) => ({
+                    key: randomKey(),
+                    aliasId,
+                    email,
+                    replyable: replyable.has(email),
+                })),
+            )
+            .onConflictDoUpdate({
+                target: [reverseContacts.aliasId, reverseContacts.email],
+                // Once replyable, always replyable.
+                set: { replyable: sql`max(${reverseContacts.replyable}, excluded.replyable)` },
+            });
+    }
+    for (const chunk of chunks(emails, 90)) {
+        const rows = await db
+            .select({ email: reverseContacts.email, key: reverseContacts.key })
+            .from(reverseContacts)
+            .where(
+                and(eq(reverseContacts.aliasId, aliasId), inArray(reverseContacts.email, chunk)),
+            );
+        for (const row of rows) keys.set(row.email, row.key);
+    }
+    return keys;
+}
+
+/**
+ * The people the owner may reply to: the sender, if Cloudflare authenticated
+ * the From address (and it isn't the owner), and a Reply-To on that domain.
+ * Others in To or Cc get reverse addresses for reply-all, nothing more, or
+ * anyone could make an address a contact by putting it in Cc.
+ */
+function replyableContacts(parsed: ParsedMessage, ownerEmail: string): Set<string> {
+    const domain = authenticatedFromDomain(parsed.headers);
+    const replyable = new Set<string>();
+    if (!domain) return replyable;
+    const from = senderOf(parsed.headers, "").address.toLowerCase();
+    if (from === ownerEmail.toLowerCase()) return replyable;
+    replyable.add(from);
+    for (const mailbox of getHeaders(parsed.headers, "Reply-To").flatMap(parseAddressList)) {
+        const address = mailbox.address.toLowerCase();
+        const on = splitAddress(address)?.domain ?? "";
+        if (on === domain || on.endsWith(`.${domain}`)) replyable.add(address);
+    }
+    return replyable;
+}
+
+/** Maps Message-IDs of the alias: `by: "id"` from what contacts saw, `"original"` from the owner's. */
+async function messageIdMap(
+    db: Db,
+    aliasId: string,
+    ids: string[],
+    by: "id" | "original",
+): Promise<Map<string, string>> {
+    const { messageIds } = schema;
+    const map = new Map<string, string>();
+    const column = by === "id" ? messageIds.id : messageIds.original;
+    for (const chunk of chunks([...new Set(ids)], 90)) {
+        const rows = await db
+            .select()
+            .from(messageIds)
+            .where(and(eq(messageIds.aliasId, aliasId), inArray(column, chunk)));
+        for (const row of rows) {
+            if (by === "id") map.set(row.id, row.original);
+            else map.set(row.original, row.id);
+        }
+    }
+    return map;
 }
 
 /** Whether the owner may send from the alias to anyone, not just its contacts. */
@@ -114,12 +209,13 @@ async function resolveReverse(
         const known = await db.query.reverseContacts.findFirst({
             where: { aliasId: alias.id, email: target.contact.toLowerCase() },
         });
-        return known ? target.contact : null;
+        return known?.replyable ? target.contact : null;
     }
     const row = await db.query.reverseContacts.findFirst({
         where: { key: target.key, aliasId: alias.id },
     });
-    return row?.email ?? null;
+    if (!row || (!unrestricted(alias) && !row.replyable)) return null;
+    return row.email;
 }
 
 /** Counts a message toward the owner's daily limit; false once it is reached. */
@@ -159,19 +255,31 @@ async function deliverToOwner(
     parsed: ParsedMessage,
 ) {
     const destination = alias.destination.email;
-    if (env.EMAIL) {
+    // Bounces and other mail without a sender are forwarded as they are: re-sent
+    // from the alias, a bounce about them could come back and go round again.
+    if (env.EMAIL && message.from) {
         try {
+            const contacts = correspondents(parsed.headers, message.from)
+                .filter((address) => address !== alias.address)
+                .slice(0, MAX_CONTACTS_PER_MESSAGE);
+            const keys = await rememberContacts(
+                db,
+                alias.id,
+                contacts,
+                replyableContacts(parsed, destination),
+            );
             const rewritten = await rewriteInbound(parsed, {
                 alias: alias.address,
                 envelopeFrom: message.from,
                 toReverse: async (contact) => {
-                    // Recorded either way: replying to it is what contacts allow.
-                    const key = await contactKey(db, alias.id, contact.toLowerCase());
+                    const key = keys.get(contact.toLowerCase());
+                    if (!key) return null;
                     return (
                         readableReverseAddress(alias.address, contact) ??
                         keyedReverseAddress(alias.address, key)
                     );
                 },
+                messageIds: await messageIdMap(db, alias.id, referencedIds(parsed.headers), "id"),
             });
             await env.EMAIL.send(
                 new EmailMessage(alias.address, destination, mime(serializeMessage(rewritten))),
@@ -210,6 +318,8 @@ async function sendAsAlias(
         message.setReject("You have reached today's sending limit");
         return false;
     }
+    const aliasDomain = splitAddress(alias.address)!.domain;
+    const messageId = `<${randomKey(24)}@${aliasDomain}>`;
     const rewritten = await rewriteOutbound(parsed, {
         alias: alias.address,
         fromReverse: async (address) => {
@@ -218,11 +328,21 @@ async function sendAsAlias(
             const reverse = parseReverseTag(recipient.tag);
             return reverse ? resolveReverse(db, alias, reverse) : null;
         },
+        messageId,
+        messageIds: await messageIdMap(db, alias.id, referencedIds(parsed.headers), "original"),
     });
     try {
         await env.EMAIL.send(
             new EmailMessage(alias.address, contact, mime(serializeMessage(rewritten))),
         );
+        // So the contact's replies thread with the owner's message again.
+        const [original] = messageIdsIn(getHeaders(parsed.headers, "Message-ID").join(" "));
+        if (original) {
+            await db
+                .insert(schema.messageIds)
+                .values({ id: messageId, aliasId: alias.id, original })
+                .onConflictDoNothing();
+        }
         return true;
     } catch (error) {
         console.error(`Sending as ${alias.address} failed: ${errorCode(error)}`);
@@ -253,17 +373,15 @@ export async function handleEmail(
 
     if (target) {
         const { headers } = parsed;
-        const sender = checkSender(headers, message.from, alias.destination.email);
+        const sender = checkSender(headers, message.from, alias.destination.email, message.to);
         if (sender.owner && !sender.authenticated) {
             // Header names only (no values), to diagnose authentication setups.
+            // The sender isn't told: a distinct answer would confirm to anyone
+            // guessing that this address is the alias's destination.
             const names = headers.map((h) => h.name).join(", ");
-            console.warn(
-                `Refused to send as ${alias.address}: ${sender.reason}. Headers: ${names}`,
-            );
-            message.setReject("Could not verify that this message comes from the alias owner");
-            return;
+            console.warn(`Not sending as ${alias.address}: ${sender.reason}. Headers: ${names}`);
         }
-        if (sender.owner) {
+        if (sender.owner && sender.authenticated) {
             if (!active) {
                 message.setReject("This alias is disabled");
                 return;

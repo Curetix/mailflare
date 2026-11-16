@@ -25,17 +25,28 @@ export function parseReverseTag(tag: string): ReverseTarget | null {
     if (at <= 0 || at === tag.length - 1) return null;
     const local = tag.slice(0, at);
     const domain = tag.slice(at + 1).toLowerCase();
-    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return null;
+    // Hostnames, with internationalized TLDs in their xn-- form.
+    if (!/^[a-z0-9.-]+\.(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/.test(domain)) return null;
     return { kind: "address", contact: `${local}@${domain}` };
 }
 
-/** The readable reverse address, or null if it would be too long. */
+/**
+ * The readable reverse address, or null if it would be too long or wouldn't
+ * read back as the same contact (e.g. a local part starting with "=", or a
+ * domain that isn't a plain hostname).
+ */
 export function readableReverseAddress(alias: string, contact: string): string | null {
     const aliasParts = splitAddress(alias);
     const contactParts = splitAddress(contact);
     if (!aliasParts || !contactParts) return null;
-    const local = `${aliasParts.local}+${contactParts.local}=${contactParts.domain.toLowerCase()}`;
-    return local.length <= MAX_LOCAL_PART ? `${local}@${aliasParts.domain}` : null;
+    const tag = `${contactParts.local}=${contactParts.domain.toLowerCase()}`;
+    const local = `${aliasParts.local}+${tag}`;
+    if (local.length > MAX_LOCAL_PART) return null;
+    const back = parseReverseTag(tag);
+    if (back?.kind !== "address" || back.contact.toLowerCase() !== contact.toLowerCase()) {
+        return null;
+    }
+    return `${local}@${aliasParts.domain}`;
 }
 
 export function keyedReverseAddress(alias: string, key: string): string {

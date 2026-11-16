@@ -3,7 +3,7 @@
 // The token manages the deployment's own data; accounts manage their own
 // aliases and destinations, on shared domains unless they are admins.
 
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -16,11 +16,13 @@ import {
     ALIAS_LOCAL_PART_PATTERN,
     DOMAIN_PATTERN,
     normalizeAddress,
+    RESERVED_LOCAL_PARTS,
     splitAddress,
 } from "../addresses";
 import { createDb, type Db, schema } from "../db";
 import {
     RESEND_INTERVAL_MS,
+    retireAddresses,
     sendDestinationVerification,
     verifyDestination,
 } from "../destinations";
@@ -128,6 +130,14 @@ const descriptionSchema = z.string().max(500);
 
 const isAdmin = (p: Principal) => p.kind === "token" || p.user.role === "admin";
 
+/** Whether accounts may not create aliases with this local part. */
+function isReserved(env: Env, local: string) {
+    const mailFrom = getSettings(env).mailFrom;
+    const sender = mailFrom && /<([^<>]+)>|^\s*(\S+@\S+)\s*$/.exec(mailFrom);
+    const senderLocal = sender ? splitAddress(sender[1] ?? sender[2] ?? "")?.local : undefined;
+    return RESERVED_LOCAL_PARTS.has(local) || local === senderLocal?.toLowerCase();
+}
+
 /** The user_id of rows the caller owns (null: the token's own rows). */
 const ownerOf = (p: Principal) => (p.kind === "user" ? p.user.id : null);
 
@@ -146,6 +156,52 @@ function limitsFor(env: Env, p: Principal): Api.Limits | null {
 }
 
 const originOf = (c: Context) => new URL(c.req.url).origin;
+
+/** Verification emails per day: per account, and to one inbox from all accounts. */
+export const VERIFICATION_MAILS_PER_ACCOUNT = 10;
+export const VERIFICATION_MAILS_PER_INBOX = 3;
+
+/**
+ * Refuses another verification email when the account, or anyone, asked for
+ * too many today, so adding and deleting an inbox can't flood a stranger.
+ */
+async function checkVerificationMails(db: Db, p: Principal, email: string) {
+    const { verificationMails } = schema;
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [[byAccount], [byInbox]] = await Promise.all([
+        db
+            .select({ total: count() })
+            .from(verificationMails)
+            .where(
+                and(
+                    eq(verificationMails.userId, ownerOf(p) ?? ""),
+                    gt(verificationMails.createdAt, since),
+                ),
+            ),
+        db
+            .select({ total: count() })
+            .from(verificationMails)
+            .where(and(eq(verificationMails.email, email), gt(verificationMails.createdAt, since))),
+    ]);
+    if (
+        (byAccount?.total ?? 0) >= VERIFICATION_MAILS_PER_ACCOUNT ||
+        (byInbox?.total ?? 0) >= VERIFICATION_MAILS_PER_INBOX
+    ) {
+        throw new ApiException(
+            429,
+            "too_many",
+            "Too many confirmation emails today. Try again tomorrow.",
+        );
+    }
+}
+
+async function sendVerification(c: Context<AppEnv>, destination: { id: string; email: string }) {
+    const { db, principal } = c.var;
+    await db
+        .insert(schema.verificationMails)
+        .values({ userId: ownerOf(principal), email: destination.email });
+    await sendDestinationVerification(c.env, db, destination, originOf(c));
+}
 
 async function findDestination(db: Db, p: Principal, email: string) {
     const destination = await db.query.destinations.findFirst({
@@ -374,13 +430,12 @@ v1.post("/destinations", json(z.object({ email: emailSchema })), async (c) => {
     const preVerified =
         principal.kind === "token" ||
         (principal.user.emailVerified && principal.user.email.toLowerCase() === email);
+    if (!preVerified) await checkVerificationMails(db, principal, email);
     const [destination] = await db
         .insert(schema.destinations)
         .values({ email, userId: ownerOf(principal), verifiedAt: preVerified ? new Date() : null })
         .returning();
-    if (!preVerified) {
-        await sendDestinationVerification(c.env, db, destination!, originOf(c));
-    }
+    if (!preVerified) await sendVerification(c, destination!);
     return c.json<Api.Destination>(toDestination(destination!), 201);
 });
 
@@ -398,7 +453,8 @@ v1.post("/destinations/:id/verify", async (c) => {
     if (Date.now() - lastSent < RESEND_INTERVAL_MS) {
         throw new ApiException(429, "too_soon", "Wait a minute before requesting another email");
     }
-    await sendDestinationVerification(c.env, db, destination, originOf(c));
+    await checkVerificationMails(db, principal, destination.email);
+    await sendVerification(c, destination);
     return c.body(null, 204);
 });
 
@@ -457,8 +513,20 @@ v1.post(
                 `Domain ${parts.domain} is not available`,
             );
         }
+        if (!isAdmin(principal) && isReserved(c.env, parts.local)) {
+            throw new ApiException(400, "reserved", `${parts.local}@ is reserved for admins`);
+        }
         if (await db.query.aliases.findFirst({ where: { address } })) {
             throw new ApiException(409, "already_exists", `Alias ${address} already exists`);
+        }
+        // Addresses of deleted aliases stay with their owner; admins may reuse them.
+        const retired = await db.query.retiredAddresses.findFirst({ where: { address } });
+        if (retired && retired.userId !== ownerOf(principal) && !isAdmin(principal)) {
+            throw new ApiException(
+                409,
+                "already_exists",
+                `Alias ${address} was used before and can't be created again`,
+            );
         }
         const limits = limitsFor(c.env, principal);
         if (limits) {
@@ -475,6 +543,11 @@ v1.post(
             }
         }
         const destination = await findDestination(db, principal, body.destination);
+        if (retired) {
+            await db
+                .delete(schema.retiredAddresses)
+                .where(eq(schema.retiredAddresses.address, address));
+        }
         const [alias] = await db
             .insert(schema.aliases)
             .values({
@@ -535,6 +608,7 @@ v1.delete("/aliases/:id", async (c) => {
         )
         .returning();
     if (result.length === 0) throw notFound("Alias");
+    await retireAddresses(db, result);
     return c.body(null, 204);
 });
 

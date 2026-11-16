@@ -458,3 +458,91 @@ describe("account security", () => {
         expect(impersonate.status).toBe(404);
     });
 });
+
+describe("addresses on shared domains", () => {
+    it("are not available for reserved mailboxes, except to admins", async () => {
+        await sharedDomain("reserved.test");
+        const token = await signUp("nina@user.test");
+        for (const local of ["postmaster", "admin", "webmaster", "mailflare", "accounts"]) {
+            const { status } = await api(
+                "POST",
+                "/api/v1/aliases",
+                { address: `${local}@reserved.test`, destination: "nina@user.test" },
+                token,
+            );
+            // accounts@ is the MAIL_FROM sender in the tests.
+            expect(status, local).toBe(400);
+        }
+        await api("POST", "/api/v1/destinations", { email: "ops@inbox.test" });
+        const admin = await api("POST", "/api/v1/aliases", {
+            address: "postmaster@reserved.test",
+            destination: "ops@inbox.test",
+        });
+        expect(admin.status).toBe(201);
+    });
+
+    it("stay with their owner after the alias is deleted", async () => {
+        await sharedDomain("retire.test");
+        const olga = await signUp("olga@user.test");
+        const paul = await signUp("paul@user.test");
+        const create = (token: string, destination: string) =>
+            api<Api.Alias>(
+                "POST",
+                "/api/v1/aliases",
+                { address: "shop@retire.test", destination },
+                token,
+            );
+
+        const alias = await create(olga, "olga@user.test");
+        expect(
+            (await api("DELETE", `/api/v1/aliases/${alias.body.id}`, undefined, olga)).status,
+        ).toBe(204);
+        expect((await create(paul, "paul@user.test")).status).toBe(409);
+        expect((await create(olga, "olga@user.test")).status).toBe(201);
+    });
+
+    it("of deleted accounts stay reserved too", async () => {
+        await sharedDomain("gone.test");
+        const quinn = await signUp("quinn@user.test");
+        await api(
+            "POST",
+            "/api/v1/aliases",
+            { address: "quinn@gone.test", destination: "quinn@user.test" },
+            quinn,
+        );
+        await request(
+            "POST",
+            "/api/auth/delete-user",
+            { password: PASSWORD },
+            { headers: { Authorization: `Bearer ${quinn}` } },
+        );
+        const rita = await signUp("rita@user.test");
+        const taken = await api(
+            "POST",
+            "/api/v1/aliases",
+            { address: "quinn@gone.test", destination: "rita@user.test" },
+            rita,
+        );
+        expect(taken.status).toBe(409);
+    });
+});
+
+describe("confirmation emails", () => {
+    it("are limited per inbox, however often it is added and deleted", async () => {
+        const token = await signUp("sam@user.test");
+        const statuses = [];
+        for (let i = 0; i < 4; i += 1) {
+            const added = await api<Api.Destination>(
+                "POST",
+                "/api/v1/destinations",
+                { email: "victim@elsewhere.test" },
+                token,
+            );
+            statuses.push(added.status);
+            if (added.status === 201) {
+                await api("DELETE", `/api/v1/destinations/${added.body.id}`, undefined, token);
+            }
+        }
+        expect(statuses).toEqual([201, 201, 201, 429]);
+    });
+});

@@ -120,5 +120,8 @@ Accounts can use the extension too: under **Mailflare Worker** on its sign-in sc
 Worker URL and select **Sign in with an account**. The Worker's app opens, asks you to allow the
 extension, and gives it a session of its own.
 
-Accounts can only reply to people who emailed their alias first, up to a daily limit, so your
-domains can't be used to spam strangers.
+Accounts can only send to people who emailed their alias themselves (from an address Cloudflare
+could authenticate), up to a daily limit. Mailboxes like `postmaster@` or `admin@` on shared
+domains are reserved for admins, and the address of a deleted alias stays with its owner. Turning
+off **Shared** for a domain, or taking away an account's admin role, keeps the aliases the account
+already has.

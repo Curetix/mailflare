@@ -45,6 +45,25 @@ export async function sendDestinationVerification(
     });
 }
 
+/**
+ * Keeps the addresses of deleted aliases for their owner (see
+ * retiredAddresses), so nobody else can create them again.
+ */
+export async function retireAddresses(
+    db: Db,
+    aliases: { address: string; userId: string | null }[],
+) {
+    for (const alias of aliases) {
+        await db
+            .insert(schema.retiredAddresses)
+            .values({ address: alias.address, userId: alias.userId })
+            .onConflictDoUpdate({
+                target: schema.retiredAddresses.address,
+                set: { userId: alias.userId, createdAt: new Date() },
+            });
+    }
+}
+
 /** Marks the destination with this token as verified; false for unknown or expired tokens. */
 export async function verifyDestination(db: Db, token: string): Promise<boolean> {
     const { destinations } = schema;

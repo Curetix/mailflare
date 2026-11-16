@@ -22,6 +22,14 @@ export async function cleanup(env: Env, now = new Date()) {
         db
             .delete(schema.user)
             .where(and(eq(schema.user.emailVerified, false), lt(schema.user.createdAt, yesterday))),
+        // The limit on verification emails looks at the last day.
+        db
+            .delete(schema.verificationMails)
+            .where(lt(schema.verificationMails.createdAt, yesterday)),
+        // Threads older than a year rarely get replies.
+        db
+            .delete(schema.messageIds)
+            .where(lt(schema.messageIds.createdAt, new Date(now.getTime() - 365 * DAY_MS))),
         // Daily send limits only look at today (UTC).
         db
             .delete(schema.sendUsage)
