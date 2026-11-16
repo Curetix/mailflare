@@ -106,9 +106,11 @@ domains you share, forwarding to inboxes they confirm by email.
    per-account limits.
 3. Your domain needs Cloudflare Email Sending (Workers Paid plan) for the Worker to mail sign-in
    links and confirmations.
-4. Sign in to the app the Worker serves with your `ADMIN_EMAILS` address (**Create account**, or an
-   emailed sign-in link). Under **Admin** → **Domains**, turn on **Shared** for the domains
-   accounts may use. Under **Admin** → **Accounts**, make accounts admins or suspend them.
+4. Sign in to the app the Worker serves with your `ADMIN_EMAILS` address: **Email me a sign-in
+   link** (**Create account** only appears when `PUBLIC_SIGNUPS` is `true`). The account becomes
+   an admin once its email is confirmed. Under **Admin** → **Domains**, turn on **Shared** for the
+   domains accounts may use. Under **Admin** → **Accounts**, make accounts admins or suspend
+   them; `ADMIN_EMAILS` only decides who the first admins are.
 
 Every account has an **Account** page: change or set a password, add passkeys, see the signed-in
 devices (including the extension) and sign them out, or delete the account with its aliases and

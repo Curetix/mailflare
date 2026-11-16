@@ -19,6 +19,8 @@ declare namespace Cloudflare {
         MAIL_FROM?: string;
         /** Comma-separated extra origins allowed to call the auth API (app, extension). */
         TRUSTED_ORIGINS?: string;
+        /** Comma-separated IDs of extensions besides the published one that may sign in. */
+        EXTENSION_IDS?: string;
         MAX_ALIASES_PER_USER?: string;
         MAX_DESTINATIONS_PER_USER?: string;
         MAX_SENDS_PER_DAY?: string;

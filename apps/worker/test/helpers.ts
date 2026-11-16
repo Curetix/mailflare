@@ -108,7 +108,22 @@ export async function signIn(email: string, options?: Options) {
     return token;
 }
 
-/** Signs up, follows the verification email, and signs in; returns the session token. */
+/**
+ * Confirms an account's email as the app's /verify-email page does after the
+ * click: with the token from the verification email.
+ */
+export async function confirmEmail(email: string) {
+    const link = new URL(linkIn(lastMailTo(email)));
+    const token = link.searchParams.get("token");
+    if (link.pathname !== "/verify-email" || !token)
+        throw new Error(`Not a verification link: ${link}`);
+    return request("GET", `/api/auth/verify-email?token=${encodeURIComponent(token)}`);
+}
+
+/** The extension's identity.launchWebAuthFlow redirect in Chrome. */
+export const EXTENSION_REDIRECT = "https://aomfbgcabccoecaoimicmmkjdmdgcfpi.chromiumapp.org/";
+
+/** Signs up, confirms the email, and signs in; returns the session token. */
 export async function signUp(email: string) {
     const response = await request("POST", "/api/auth/sign-up/email", {
         email,
@@ -117,6 +132,6 @@ export async function signUp(email: string) {
     });
     if (!response.ok)
         throw new Error(`Sign-up failed: ${response.status} ${await response.text()}`);
-    await request("GET", linkIn(lastMailTo(email)));
+    await confirmEmail(email);
     return signIn(email);
 }

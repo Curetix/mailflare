@@ -2,7 +2,19 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import type * as Api from "../src/api/types";
-import { api, lastMailTo, linkIn, PASSWORD, request, signIn, signUp } from "./helpers";
+import { cleanup } from "../src/cleanup";
+import { redirectHost } from "../src/extensions";
+import {
+    api,
+    confirmEmail,
+    EXTENSION_REDIRECT,
+    lastMailTo,
+    linkIn,
+    PASSWORD,
+    request,
+    signIn,
+    signUp,
+} from "./helpers";
 
 /** A shared domain for accounts, created with the admin token. */
 async function sharedDomain(name: string) {
@@ -26,7 +38,18 @@ describe("signing up", () => {
         });
         expect(early.status).toBe(403);
 
-        await request("GET", linkIn(lastMailTo(email)));
+        // The email links to the app, which confirms only after a click: a
+        // link scanner fetching the link verifies nothing.
+        const link = new URL(linkIn(lastMailTo(email)));
+        expect(link.pathname).toBe("/verify-email");
+        await request("GET", link.href);
+        const scanned = await request("POST", "/api/auth/sign-in/email", {
+            email,
+            password: PASSWORD,
+        });
+        expect(scanned.status).toBe(403);
+
+        expect((await confirmEmail(email)).ok).toBe(true);
         const token = await signIn(email);
         const me = await api<Api.Me>("GET", "/api/v1/me", undefined, token);
         expect(me.body).toMatchObject({
@@ -68,10 +91,30 @@ describe("signing up", () => {
             closed,
         );
         expect(admin.ok).toBe(true);
-        await request("GET", linkIn(lastMailTo("boss@admin.test")));
+        // Not an admin while anyone could have signed up with the address.
+        const unconfirmed = await env.DB.prepare("SELECT role FROM user WHERE email = ?")
+            .bind("boss@admin.test")
+            .first<{ role: string }>();
+        expect(unconfirmed?.role).toBe("user");
+
+        await confirmEmail("boss@admin.test");
         const token = await signIn("boss@admin.test");
         const me = await api<Api.Me>("GET", "/api/v1/me", undefined, token);
         expect(me.body).toMatchObject({ role: "admin", limits: null });
+    });
+
+    it("forgets sign-ups nobody confirmed within a day", async () => {
+        await request("POST", "/api/auth/sign-up/email", {
+            email: "ghost@user.test",
+            password: PASSWORD,
+            name: "Ghost",
+        });
+        const exists = () =>
+            env.DB.prepare("SELECT id FROM user WHERE email = ?").bind("ghost@user.test").first();
+        await cleanup(env);
+        expect(await exists()).not.toBeNull();
+        await cleanup(env, new Date(Date.now() + 25 * 60 * 60 * 1000));
+        expect(await exists()).toBeNull();
     });
 });
 
@@ -235,7 +278,12 @@ describe("an account's data", () => {
 describe("sessions", () => {
     it("hands other apps a session of their own, and signs out one at a time", async () => {
         const app = await signUp("frank@user.test");
-        const created = await api<Api.NewSession>("POST", "/api/v1/sessions", undefined, app);
+        const created = await api<Api.NewSession>(
+            "POST",
+            "/api/v1/sessions",
+            { redirectUri: EXTENSION_REDIRECT },
+            app,
+        );
         expect(created.status).toBe(201);
         const extension = created.body.token;
         expect(extension).not.toBe(app);
@@ -249,7 +297,9 @@ describe("sessions", () => {
         expect((await api("GET", "/api/v1/me", undefined, app)).status).toBe(200);
 
         // The admin token is no account: nothing to hand out, nothing to sign out.
-        expect((await api("POST", "/api/v1/sessions")).status).toBe(400);
+        expect(
+            (await api("POST", "/api/v1/sessions", { redirectUri: EXTENSION_REDIRECT })).status,
+        ).toBe(400);
         expect((await api("DELETE", "/api/v1/session")).status).toBe(204);
         expect((await api("GET", "/api/v1/me")).status).toBe(200);
     });
@@ -258,7 +308,7 @@ describe("sessions", () => {
 describe("self-service", () => {
     it("lists signed-in devices, naming the extension's session", async () => {
         const app = await signUp("grace@user.test");
-        await api("POST", "/api/v1/sessions", undefined, app);
+        await api("POST", "/api/v1/sessions", { redirectUri: EXTENSION_REDIRECT }, app);
         const response = await request("GET", "/api/auth/list-sessions", undefined, {
             headers: { Authorization: `Bearer ${app}` },
         });
@@ -335,5 +385,76 @@ describe("rate limits", () => {
             statuses.push(response.status);
         }
         expect(statuses).toContain(429);
+    });
+});
+
+describe("account security", () => {
+    it("hands sessions only to known extensions, no fresher than the session asking", async () => {
+        const app = await signUp("ivan@user.test");
+        const ask = (redirectUri: string, options?: { env?: Partial<Env> }) =>
+            api<Api.NewSession>("POST", "/api/v1/sessions", { redirectUri }, app, options);
+
+        expect((await ask("https://evil.test/")).status).toBe(400);
+        expect(
+            (await ask("https://bcdefghijklmnopabcdefghijklmnopa.chromiumapp.org/")).status,
+        ).toBe(400);
+        const firefox = await redirectHost("{f0bdc9fa-a062-4424-baee-16530c53aa06}");
+        expect((await ask(`https://${firefox}/`)).status).toBe(201);
+        // Development builds, once the Worker allows them.
+        const dev = "https://bcdefghijklmnopabcdefghijklmnopa.chromiumapp.org/";
+        const allowed = await ask(dev, {
+            env: { EXTENSION_IDS: "bcdefghijklmnopabcdefghijklmnopa" },
+        });
+        expect(allowed.status).toBe(201);
+
+        // Bearer tokens from sign-ins carry a signature after the session token.
+        const createdAt = (token: string) =>
+            env.DB.prepare("SELECT created_at AS at FROM session WHERE token = ?")
+                .bind(token.split(".")[0])
+                .first<{ at: number }>();
+        expect((await createdAt(allowed.body.token))?.at).toBe((await createdAt(app))?.at);
+    });
+
+    it("accepts bearer tokens only, not the session cookie", async () => {
+        await signUp("judy@user.test");
+        const response = await request("POST", "/api/auth/sign-in/email", {
+            email: "judy@user.test",
+            password: PASSWORD,
+        });
+        const cookie = response.headers.get("set-cookie")!.split(";")[0]!;
+        const me = await request("GET", "/api/v1/me", undefined, { headers: { Cookie: cookie } });
+        expect(me.status).toBe(401);
+    });
+
+    it("signs out every session when the password is reset", async () => {
+        const token = await signUp("kim@user.test");
+        await request("POST", "/api/auth/request-password-reset", {
+            email: "kim@user.test",
+            redirectTo: "/reset-password",
+        });
+        const resetLink = new URL(linkIn(lastMailTo("kim@user.test")));
+        const resetToken = resetLink.pathname.split("/").pop()!;
+        const reset = await request("POST", "/api/auth/reset-password", {
+            token: resetToken,
+            newPassword: "another long password",
+        });
+        expect(reset.ok).toBe(true);
+        expect((await api("GET", "/api/v1/me", undefined, token)).status).toBe(401);
+    });
+
+    it("keeps better-auth's admin endpoints closed, even to admins", async () => {
+        const victim = await signUp("leo@user.test");
+        const { body: me } = await api<Api.Me>("GET", "/api/v1/me", undefined, victim);
+        const admin = await signUp("mallory@user.test");
+        await env.DB.prepare("UPDATE user SET role = 'admin' WHERE email = ?")
+            .bind("mallory@user.test")
+            .run();
+        const impersonate = await request(
+            "POST",
+            "/api/auth/admin/impersonate-user",
+            { userId: me.user!.id },
+            { headers: { Authorization: `Bearer ${admin}` } },
+        );
+        expect(impersonate.status).toBe(404);
     });
 });

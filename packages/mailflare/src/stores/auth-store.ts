@@ -11,6 +11,8 @@ export type AuthState = {
     workerUrl: string | null;
     selectedZoneId: string | null;
     connect: (connection: Connection) => void;
+    /** Swaps in a new token for the same connection (the account's session changed). */
+    replaceToken: (token: string) => void;
     setZone: (zoneId: string | null) => void;
     logout: () => void;
 };
@@ -42,6 +44,10 @@ export const useAuthStore = create<AuthState>((set) => ({
             else _authStorage.remove(StorageKeys.WorkerUrl);
             _authStorage.remove(StorageKeys.ZoneId);
         }
+    },
+    replaceToken: (token) => {
+        set({ apiToken: token });
+        _authStorage?.set(StorageKeys.ApiToken, token);
     },
     setZone: (zoneId) => {
         set({ selectedZoneId: zoneId });

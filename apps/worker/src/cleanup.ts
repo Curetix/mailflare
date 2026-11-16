@@ -2,7 +2,7 @@
 // Reverse contacts stay: they are what lets the owner reply to old mail, and
 // they go with their alias.
 
-import { lt } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 
 import { createDb, schema } from "./db";
 
@@ -17,6 +17,11 @@ export async function cleanup(env: Env, now = new Date()) {
         db.delete(schema.session).where(lt(schema.session.expiresAt, now)),
         // Rate-limit windows are minutes long.
         db.delete(schema.rateLimit).where(lt(schema.rateLimit.lastRequest, yesterday.getTime())),
+        // Sign-ups nobody confirmed: the address may not belong to whoever
+        // signed up, so the account shouldn't wait for a click indefinitely.
+        db
+            .delete(schema.user)
+            .where(and(eq(schema.user.emailVerified, false), lt(schema.user.createdAt, yesterday))),
         // Daily send limits only look at today (UTC).
         db
             .delete(schema.sendUsage)

@@ -84,5 +84,11 @@ export type CreateAlias = {
 export type UpdateAlias = Partial<Pick<Alias, "destination" | "description" | "enabled">>;
 export type UpdateUser = { role?: Role; banned?: boolean };
 
+/**
+ * Body of `POST /api/v1/sessions`: the extension's `identity.getRedirectURL()`,
+ * which must belong to an extension the Worker knows.
+ */
+export type CreateSession = { redirectUri: string };
+
 /** A new session for another app, from `POST /api/v1/sessions`. */
 export type NewSession = { token: string };

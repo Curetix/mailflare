@@ -17,6 +17,7 @@ import {
     isExtensionRedirect,
     ResetPasswordPage,
     VerifyDestinationPage,
+    VerifyEmailPage,
 } from "./account-pages";
 import { AppFrame } from "./app-frame";
 import { AppLayout } from "./app-layout";
@@ -121,6 +122,7 @@ function AppRoutes() {
 
     if (url) {
         if (location === "/reset-password") return <LinkPage url={url} Page={ResetPasswordPage} />;
+        if (location === "/verify-email") return <LinkPage url={url} Page={VerifyEmailPage} />;
         if (location === "/verify-destination") {
             return <LinkPage url={url} Page={VerifyDestinationPage} />;
         }

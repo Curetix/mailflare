@@ -7,6 +7,7 @@ import { passkey } from "@better-auth/passkey";
 import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import { admin, bearer, magicLink } from "better-auth/plugins";
+import { eq } from "drizzle-orm";
 
 import { splitAddress } from "./addresses";
 import { createDb, type Db, schema } from "./db";
@@ -14,6 +15,13 @@ import { type AccountEmail, sendAccountEmail } from "./mailer";
 import { getSettings } from "./settings";
 
 export const AUTH_BASE_PATH = "/api/auth";
+
+/**
+ * The app page an account's verification email links to. Confirming takes a
+ * click there, so link scanners in mailboxes can't verify an account that
+ * someone else signed up with this address.
+ */
+export const VERIFY_EMAIL_PAGE = "/verify-email";
 
 /**
  * The account email is a destination from the moment it is verified, unless
@@ -76,6 +84,8 @@ export function createAuth(
         emailAndPassword: {
             enabled: true,
             requireEmailVerification: true,
+            // A reset is how people lock out someone who got hold of a session.
+            revokeSessionsOnPasswordReset: true,
             sendResetPassword: async ({ user, url }) =>
                 send({
                     to: user.email,
@@ -87,12 +97,22 @@ export function createAuth(
             sendOnSignUp: true,
             sendOnSignIn: true,
             autoSignInAfterVerification: true,
-            sendVerificationEmail: async ({ user, url }) =>
+            sendVerificationEmail: async ({ user, token }) =>
                 send({
                     to: user.email,
                     subject: "Verify your email for Mailflare",
-                    text: `Confirm your email address to finish creating your Mailflare account:\n\n${url}\n\nIf you didn't sign up, ignore this email.`,
+                    text: `Confirm your email address to finish creating your Mailflare account:\n\n${origin}${VERIFY_EMAIL_PAGE}?token=${encodeURIComponent(token)}\n\nIf you didn't sign up, ignore this email: someone else entered your address.`,
                 }),
+            // ADMIN_EMAILS get the admin role once the address is proven to be
+            // theirs, not when someone signs up with it.
+            afterEmailVerification: async (user) => {
+                if (settings.adminEmails.has(user.email.toLowerCase())) {
+                    await db
+                        .update(schema.user)
+                        .set({ role: "admin" })
+                        .where(eq(schema.user.id, user.id));
+                }
+            },
         },
         databaseHooks: {
             user: {
@@ -107,7 +127,10 @@ export function createAuth(
                                 message: "Sign-ups are closed on this Mailflare Worker",
                             });
                         }
-                        return { data: { ...user, email, role: isAdmin ? "admin" : "user" } };
+                        // Magic link sign-ups arrive verified; password sign-ups
+                        // become admins in afterEmailVerification.
+                        const role = isAdmin && user.emailVerified ? "admin" : "user";
+                        return { data: { ...user, email, role } };
                     },
                     after: async (user) => {
                         if (user.emailVerified) await addAccountDestination(db, user);

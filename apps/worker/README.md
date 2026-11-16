@@ -60,23 +60,29 @@ own (via `identity.launchWebAuthFlow`).
   token doesn't see accounts' data either.
 - Accounts can only reply to people who emailed the alias first, and only up
   to a daily limit, so your domains can't be used to spam strangers.
-- Accounts with the `admin` role (see `ADMIN_EMAILS`) have no limits, may use
-  every domain and manage domains and accounts.
+- Accounts with the `admin` role have no limits, may use every domain and
+  manage domains and accounts, but don't see other accounts' aliases or
+  inboxes either. `ADMIN_EMAILS` are the first admins: an account with one of
+  these addresses gets the role once its email is confirmed. After that, roles
+  are changed under Admin → Accounts; editing `ADMIN_EMAILS` doesn't change
+  existing accounts.
+- Sign-ups that aren't confirmed within a day are deleted.
 
 ### Settings
 
 Set these as variables in the Worker's dashboard settings (they survive
 deploys) or in `.dev.vars` for development:
 
-| Variable                    | Default                              | Meaning                                                           |
-| --------------------------- | ------------------------------------ | ----------------------------------------------------------------- |
-| `PUBLIC_SIGNUPS`            | `false`                              | `true` lets anyone create an account                              |
-| `ADMIN_EMAILS`              |                                      | Comma-separated; these accounts are admins and may always sign up |
-| `MAIL_FROM`                 | `Mailflare <mailflare@first-domain>` | Sender of account emails                                          |
-| `TRUSTED_ORIGINS`           |                                      | Comma-separated extra origins allowed to call `/api/auth`         |
-| `MAX_ALIASES_PER_USER`      | `100`                                | Per account without the admin role                                |
-| `MAX_DESTINATIONS_PER_USER` | `5`                                  |                                                                   |
-| `MAX_SENDS_PER_DAY`         | `50`                                 | Messages sent from aliases per account and UTC day                |
+| Variable                    | Default                              | Meaning                                                         |
+| --------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| `PUBLIC_SIGNUPS`            | `false`                              | `true` lets anyone create an account                            |
+| `ADMIN_EMAILS`              |                                      | Comma-separated; may always sign up and become the first admins |
+| `MAIL_FROM`                 | `Mailflare <mailflare@first-domain>` | Sender of account emails                                        |
+| `TRUSTED_ORIGINS`           |                                      | Comma-separated extra origins allowed to call `/api/auth`       |
+| `EXTENSION_IDS`             |                                      | Comma-separated IDs of other extension builds that may sign in  |
+| `MAX_ALIASES_PER_USER`      | `100`                                | Per account without the admin role                              |
+| `MAX_DESTINATIONS_PER_USER` | `5`                                  |                                                                 |
+| `MAX_SENDS_PER_DAY`         | `50`                                 | Messages sent from aliases per account and UTC day              |
 
 Secrets: `ADMIN_TOKEN` and `AUTH_SECRET` (`wrangler secret put <name>`).
 
