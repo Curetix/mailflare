@@ -42,9 +42,14 @@ export default defineConfig({
         ],
         host_permissions: ["https://api.cloudflare.com/*"],
         // The ID 1.x was published under, so Firefox users get the update.
+        // 147: the Astryx theme is wrapped in CSS @scope (146), and its sliding
+        // indicators use anchor positioning (147); older versions lose the theme.
         ...(browser === "firefox" && {
             browser_specific_settings: {
-                gecko: { id: "{f0bdc9fa-a062-4424-baee-16530c53aa06}" },
+                gecko: {
+                    id: "{f0bdc9fa-a062-4424-baee-16530c53aa06}",
+                    strict_min_version: "147.0",
+                },
             },
         }),
     }),
