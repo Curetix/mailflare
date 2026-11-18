@@ -8,7 +8,14 @@ import {
     parseMessage,
     serializeMessage,
 } from "../src/mime";
-import { keyedReverseAddress, parseReverseTag, readableReverseAddress } from "../src/reverse";
+import {
+    KEY_LENGTH,
+    keyedReverseAddress,
+    keyLengthFor,
+    MAX_LOCAL_PART,
+    parseReverseTag,
+    readableReverseAddress,
+} from "../src/reverse";
 import { rewriteInbound, rewriteOutbound } from "../src/rewrite";
 
 const encoder = new TextEncoder();
@@ -313,6 +320,32 @@ describe("reverse addresses", () => {
         expect(readableReverseAddress("a@me.test", "=x@shop.test")).toBeNull();
         expect(readableReverseAddress("a@me.test", "bob@[192.0.2.1]")).toBeNull();
         expect(keyedReverseAddress("a@me.test", "k3x9q2m7p4")).toBe("a+=k3x9q2m7p4@me.test");
+    });
+
+    it("size the key to the alias so the short form fits the local-part limit", () => {
+        expect(keyLengthFor("a@me.test")).toBe(KEY_LENGTH);
+        // 52 characters of alias leave exactly room for the usual key.
+        expect(keyLengthFor(`${"a".repeat(52)}@me.test`)).toBe(KEY_LENGTH);
+        expect(keyLengthFor(`${"a".repeat(55)}@me.test`)).toBe(7);
+        expect(keyLengthFor(`${"a".repeat(56)}@me.test`)).toBe(6);
+        // Too little room for the shortest key parseReverseTag accepts.
+        expect(keyLengthFor(`${"a".repeat(57)}@me.test`)).toBe(0);
+        expect(keyLengthFor(`${"a".repeat(64)}@me.test`)).toBe(0);
+        expect(keyLengthFor("nope")).toBe(0);
+    });
+
+    it("never build a short form that exceeds the limit", () => {
+        const alias = "a".repeat(55) + "@me.test";
+        const keyed = keyedReverseAddress(alias, "abcdefg");
+        expect(keyed).toBe("a".repeat(55) + "+=abcdefg@me.test");
+        expect(keyed?.split("@")[0]?.length).toBe(MAX_LOCAL_PART);
+        expect(
+            parseReverseTag(keyed?.slice(keyed.indexOf("+") + 1, keyed.indexOf("@")) ?? ""),
+        ).toEqual({ kind: "key", key: "abcdefg" });
+        // One character more would not fit: no address at all, rather than an invalid one.
+        expect(keyedReverseAddress(alias, "abcdefgh")).toBeNull();
+        expect(keyedReverseAddress(`${"a".repeat(64)}@me.test`, "abcdef")).toBeNull();
+        expect(keyedReverseAddress("nope", "abcdef")).toBeNull();
     });
 });
 

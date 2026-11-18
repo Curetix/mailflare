@@ -21,7 +21,9 @@ import {
     serializeMessage,
 } from "./mime";
 import {
+    KEY_LENGTH,
     keyedReverseAddress,
+    keyLengthFor,
     parseReverseTag,
     randomKey,
     readableReverseAddress,
@@ -109,35 +111,64 @@ function chunks<T>(items: T[], size: number): T[][] {
     return out;
 }
 
+/** How many fresh keys to try when another contact already owns one. */
+const MAX_KEY_ATTEMPTS = 5;
+
+/** Whether an insert failed because a contact already owns the key. */
+function isKeyConflict(error: unknown): boolean {
+    // Drizzle wraps the D1 error, which wraps the constraint error again.
+    for (let current = error; current instanceof Error; current = current.cause) {
+        if (current.message.includes("UNIQUE constraint failed: reverse_contacts.key")) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Records contacts of the alias (lowercase addresses), marking `replyable`
  * ones as people the owner may send to; returns each contact's short key.
+ * Keys are as long as the alias's local part leaves room for (see keyLengthFor).
  */
 async function rememberContacts(
     db: Db,
     aliasId: string,
+    aliasAddress: string,
     emails: string[],
     replyable: Set<string>,
 ): Promise<Map<string, string>> {
     const { reverseContacts } = schema;
     const keys = new Map<string, string>();
     if (emails.length === 0) return keys;
+    const keyLength = keyLengthFor(aliasAddress) || KEY_LENGTH;
     for (const chunk of chunks(emails, 15)) {
-        await db
-            .insert(reverseContacts)
-            .values(
-                chunk.map((email) => ({
-                    key: randomKey(),
-                    aliasId,
-                    email,
-                    replyable: replyable.has(email),
-                })),
-            )
-            .onConflictDoUpdate({
-                target: [reverseContacts.aliasId, reverseContacts.email],
-                // Once replyable, always replyable.
-                set: { replyable: sql`max(${reverseContacts.replyable}, excluded.replyable)` },
-            });
+        let rows = chunk.map((email) => ({
+            key: randomKey(keyLength),
+            aliasId,
+            email,
+            replyable: replyable.has(email),
+        }));
+        for (let attempt = 1; ; attempt++) {
+            try {
+                await db
+                    .insert(reverseContacts)
+                    .values(rows)
+                    .onConflictDoUpdate({
+                        target: [reverseContacts.aliasId, reverseContacts.email],
+                        set: {
+                            // Once replyable, always replyable.
+                            replyable: sql`max(${reverseContacts.replyable}, excluded.replyable)`,
+                            // A key stored before the limit changed is too long to use.
+                            key: sql`case when length(${reverseContacts.key}) > ${keyLength} then excluded.key else ${reverseContacts.key} end`,
+                        },
+                    });
+                break;
+            } catch (error) {
+                // A key is unique across all aliases: another contact may own it.
+                if (attempt >= MAX_KEY_ATTEMPTS || !isKeyConflict(error)) throw error;
+                rows = rows.map((row) => ({ ...row, key: randomKey(keyLength) }));
+            }
+        }
     }
     for (const chunk of chunks(emails, 90)) {
         const rows = await db
@@ -265,6 +296,7 @@ async function deliverToOwner(
             const keys = await rememberContacts(
                 db,
                 alias.id,
+                alias.address,
                 contacts,
                 replyableContacts(parsed, destination),
             );

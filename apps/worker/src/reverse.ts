@@ -6,7 +6,8 @@
 //
 // The readable form splits at the last "=" (domains never contain one), so
 // contact local parts may contain "=" and "+" without escaping. You can also
-// write it yourself to start a new conversation from an alias.
+// write it yourself to start a new conversation from an alias. A long alias
+// gets a shorter key (see keyLengthFor) so the short form fits too.
 
 import { splitAddress } from "./addresses";
 
@@ -49,9 +50,26 @@ export function readableReverseAddress(alias: string, contact: string): string |
     return `${local}@${aliasParts.domain}`;
 }
 
-export function keyedReverseAddress(alias: string, key: string): string {
-    const parts = splitAddress(alias)!;
-    return `${parts.local}+=${key}@${parts.domain}`;
+export function keyedReverseAddress(alias: string, key: string): string | null {
+    const parts = splitAddress(alias);
+    if (!parts) return null;
+    const local = `${parts.local}+=${key}`;
+    if (local.length > MAX_LOCAL_PART) return null;
+    return `${local}@${parts.domain}`;
+}
+
+/** The usual key length; a longer alias local part gets a shorter key. */
+export const KEY_LENGTH = 10;
+
+/** The shortest key parseReverseTag accepts. */
+const MIN_KEY_LENGTH = 6;
+
+/** The key length that keeps `alias+=<key>@domain` within the local-part limit; 0 if none fits. */
+export function keyLengthFor(alias: string): number {
+    const parts = splitAddress(alias);
+    if (!parts) return 0;
+    const room = MAX_LOCAL_PART - parts.local.length - 2; // "+="
+    return room < MIN_KEY_LENGTH ? 0 : Math.min(room, KEY_LENGTH);
 }
 
 const KEY_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
