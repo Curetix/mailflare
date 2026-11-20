@@ -25,6 +25,15 @@ export type AddressFormat = {
     prefixFormat?: AliasPrefixFormat;
 };
 
+/**
+ * The format of an API key's aliases: there's no one to type a custom name or
+ * prefix, and the "domain" format needs a domain prefix.
+ */
+export type ApiKeyFormat = Omit<AddressFormat, "format" | "prefixFormat"> & {
+    format: Exclude<AliasFormat, "custom">;
+    prefixFormat?: Exclude<AliasPrefixFormat, "custom">;
+};
+
 export type GenerateAliasOptions = AddressFormat & {
     customPrefix?: string;
     /** The website the alias is for, for the prefix and the "domain" format. */

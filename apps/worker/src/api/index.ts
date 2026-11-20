@@ -3,7 +3,7 @@
 // The token manages the deployment's own data; accounts manage their own
 // aliases and destinations, on shared domains unless they are admins.
 
-import { and, count, eq, gt, isNull } from "drizzle-orm";
+import { and, count, eq, gt, isNull, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { type Auth, AUTH_BASE_PATH, createAuth, type SessionUser } from "../accounts";
 import { DOMAIN_PATTERN, splitAddress } from "../addresses";
-import { AliasFormats, AliasPrefixFormats } from "../alias-address";
+import { AliasFormats, AliasPrefixFormats, type ApiKeyFormat } from "../alias-address";
 import { createDb, type Db, schema } from "../db";
 import {
     RESEND_INTERVAL_MS,
@@ -558,17 +558,23 @@ v1.patch(
 /** Keys per account (and for the admin token). */
 export const MAX_API_KEYS = 20;
 
-const addressFormatSchema = z.object({
-    // "custom" names each alias by hand, which a key can't.
-    format: z.enum(AliasFormats).exclude(["custom"]),
-    characterCount: z.number().int().min(3).max(25).optional(),
-    wordCount: z.number().int().min(1).max(5).optional(),
-    separator: z
-        .string()
-        .regex(/^[._-]?$/, "Use ., _, - or nothing")
-        .optional(),
-    prefixFormat: z.enum(AliasPrefixFormats).exclude(["custom"]).optional(),
-});
+const addressFormatSchema = z
+    .object({
+        // "custom" names each alias by hand, which a key can't.
+        format: z.enum(AliasFormats).exclude(["custom"]),
+        characterCount: z.number().int().min(3).max(25).optional(),
+        wordCount: z.number().int().min(1).max(5).optional(),
+        separator: z
+            .string()
+            .regex(/^[._-]?$/, "Use ., _, - or nothing")
+            .optional(),
+        prefixFormat: z.enum(AliasPrefixFormats).exclude(["custom"]).optional(),
+    })
+    // The address is the website's name: there has to be one.
+    .refine((f) => f.format !== "domain" || (f.prefixFormat ?? "none") !== "none", {
+        path: ["prefixFormat"],
+        message: "The website domain format needs a domain prefix",
+    }) satisfies z.ZodType<ApiKeyFormat>;
 
 v1.get("/api-keys", async (c) => {
     const rows = await c.var.db.query.apiKeys.findMany({
@@ -592,13 +598,14 @@ v1.post(
     async (c) => {
         const { db, principal } = c.var;
         const body = c.req.valid("json");
+        const limitReached = () =>
+            new ApiException(403, "limit_reached", `Up to ${MAX_API_KEYS} API keys`);
+        const owner = ownerOf(principal);
         const keys = await db.query.apiKeys.findMany({
             where: owned(principal),
             columns: { id: true },
         });
-        if (keys.length >= MAX_API_KEYS) {
-            throw new ApiException(403, "limit_reached", `Up to ${MAX_API_KEYS} API keys`);
-        }
+        if (keys.length >= MAX_API_KEYS) throw limitReached();
         const destination = await findDestination(db, principal, body.destination);
         let domain: typeof schema.domains.$inferSelect | null = null;
         if (body.domain) {
@@ -612,18 +619,16 @@ v1.post(
             }
         }
         const { key, keyHash, start } = await newApiKey();
-        const [row] = await db
-            .insert(schema.apiKeys)
-            .values({
-                userId: ownerOf(principal),
-                name: body.name,
-                keyHash,
-                start,
-                destinationId: destination.id,
-                domainId: domain?.id ?? null,
-                format: body.format,
-            })
-            .returning();
+        // One statement, so requests at the same time can't both get under the limit.
+        const id = crypto.randomUUID();
+        const result = await db.run(sql`
+            INSERT INTO api_keys (id, user_id, name, key_hash, start, destination_id, domain_id, format, created_at)
+            SELECT ${id}, ${owner}, ${body.name}, ${keyHash}, ${start}, ${destination.id},
+                ${domain?.id ?? null}, ${JSON.stringify(body.format)}, ${Math.floor(Date.now() / 1000)}
+            WHERE (SELECT count(*) FROM api_keys WHERE user_id IS ${owner}) < ${MAX_API_KEYS}
+        `);
+        if (result.meta.changes === 0) throw limitReached();
+        const row = await db.query.apiKeys.findFirst({ where: { id } });
         return c.json<Api.NewApiKey>(
             { apiKey: toApiKey({ ...row!, destination, domain }), key },
             201,

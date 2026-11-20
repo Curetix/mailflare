@@ -96,7 +96,11 @@ async function createForKey(
                 .where(eq(schema.apiKeys.id, key.id));
             return alias;
         } catch (error) {
-            const taken = error instanceof ApiException && error.code === "already_exists";
+            // Taken, or reserved for admins (a website named "security", say):
+            // the next attempt adds random characters.
+            const taken =
+                error instanceof ApiException &&
+                (error.code === "already_exists" || error.code === "reserved");
             // A prefix from the website may not make a valid address; go without it.
             const invalid = error instanceof ApiException && error.code === "invalid_address";
             if (invalid && options.prefixFormat !== "none") {

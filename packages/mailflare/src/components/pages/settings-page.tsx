@@ -142,7 +142,11 @@ export function SettingsPage() {
             // The sidebar has it on wide screens.
             hide: !lockedWorkerUrl || isWide,
             action: (
-                <Button size="sm" label={t("api_keys.action")} onClick={() => navigate(PATHS.apiKeys)} />
+                <Button
+                    size="sm"
+                    label={t("api_keys.action")}
+                    onClick={() => navigate(PATHS.apiKeys)}
+                />
             ),
         },
         {

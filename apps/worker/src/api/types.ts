@@ -1,7 +1,7 @@
 // The HTTP API contract, shared with the app's Worker backend (type-only import).
 // Timestamps are Unix seconds.
 
-import type { AddressFormat } from "../alias-address";
+import type { ApiKeyFormat } from "../alias-address";
 
 export const API_VERSION = 1;
 
@@ -104,7 +104,7 @@ export type ApiKey = {
     destination: string;
     /** For tools that don't name a domain; null: the first one available. */
     domain: string | null;
-    format: AddressFormat;
+    format: ApiKeyFormat;
     createdAt: number;
     lastUsedAt: number | null;
 };

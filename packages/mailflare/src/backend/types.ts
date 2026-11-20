@@ -5,7 +5,7 @@
 // All data types are plain, JSON-serializable objects so they survive the
 // persisted query cache and session storage unchanged.
 
-import type { AddressFormat } from "@mailflare/worker/alias-address";
+import type { ApiKeyFormat } from "@mailflare/worker/alias-address";
 
 export type BackendKind = "cloudflare" | "worker";
 
@@ -106,7 +106,7 @@ export type ApiKey = {
     destination: string;
     /** For tools that don't name a domain; null: the first one available. */
     domain: string | null;
-    format: AddressFormat;
+    format: ApiKeyFormat;
     /** Unix seconds. */
     createdAt: number;
     lastUsedAt: number | null;

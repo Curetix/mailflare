@@ -8,7 +8,7 @@ import {
     uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
-import type { AddressFormat } from "../alias-address";
+import type { ApiKeyFormat } from "../alias-address";
 import { user } from "./auth-schema";
 
 export * from "./auth-schema";
@@ -185,7 +185,7 @@ export const apiKeys = sqliteTable(
         /** For tools that don't name a domain; null: the first one available. */
         domainId: text("domain_id").references(() => domains.id, { onDelete: "set null" }),
         /** The address format (alias-address.ts), JSON. */
-        format: text("format", { mode: "json" }).$type<AddressFormat>().notNull(),
+        format: text("format", { mode: "json" }).$type<ApiKeyFormat>().notNull(),
         lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
         createdAt: createdAt(),
     },

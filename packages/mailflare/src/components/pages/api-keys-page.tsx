@@ -15,7 +15,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
-import type { AddressFormat } from "@mailflare/worker/alias-address";
+import type { ApiKeyFormat } from "@mailflare/worker/alias-address";
 import { type FormEvent, useState } from "react";
 import { TbCopy, TbKey, TbPlus, TbTrash } from "react-icons/tb";
 import { useFormatter, useTranslations } from "use-intl";
@@ -27,8 +27,7 @@ import { useAliasSettingsStore } from "../../stores/alias-settings-store";
 import { useAuthStore } from "../../stores/auth-store";
 import { PageBody, PageHeader } from "./page-header";
 
-type KeyFormat = Required<Pick<AddressFormat, "format" | "prefixFormat">> &
-    Pick<AddressFormat, "characterCount" | "wordCount" | "separator">;
+type KeyFormat = ApiKeyFormat & Required<Pick<ApiKeyFormat, "prefixFormat">>;
 
 /** The app's default alias format, as far as a key can use it (no custom names). */
 function defaultFormat(): KeyFormat {
@@ -38,7 +37,8 @@ function defaultFormat(): KeyFormat {
     return {
         format,
         prefixFormat: prefix && prefix !== "custom" ? prefix : "none",
-        characterCount: settings.characterCount ?? 8,
+        // The same fallbacks as the create dialog.
+        characterCount: settings.characterCount ?? 5,
         wordCount: settings.wordCount ?? 2,
         separator: settings.separator ?? "_",
     };
