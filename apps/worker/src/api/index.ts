@@ -7,18 +7,11 @@ import { and, count, eq, gt, isNull } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
-import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { validator } from "hono/validator";
 import { z } from "zod";
 
 import { type Auth, AUTH_BASE_PATH, createAuth, type SessionUser } from "../accounts";
-import {
-    ALIAS_LOCAL_PART_PATTERN,
-    DOMAIN_PATTERN,
-    normalizeAddress,
-    RESERVED_LOCAL_PARTS,
-    splitAddress,
-} from "../addresses";
+import { DOMAIN_PATTERN, splitAddress } from "../addresses";
+import { AliasFormats, AliasPrefixFormats } from "../alias-address";
 import { createDb, type Db, schema } from "../db";
 import {
     RESEND_INTERVAL_MS,
@@ -28,6 +21,19 @@ import {
 } from "../destinations";
 import { isExtensionRedirect } from "../extensions";
 import { getSettings } from "../settings";
+import {
+    ApiException,
+    createAlias,
+    isAdmin,
+    json,
+    limitsFor,
+    notFound,
+    owned,
+    ownerOf,
+    requireAdmin,
+    seconds,
+} from "./common";
+import { addy, newApiKey, simpleLogin } from "./compat";
 import type * as Api from "./types";
 import { API_VERSION } from "./types";
 
@@ -42,37 +48,6 @@ type Principal =
       };
 
 type AppEnv = { Bindings: Env; Variables: { db: Db; principal: Principal } };
-
-class ApiException extends HTTPException {
-    constructor(
-        status: ContentfulStatusCode,
-        readonly code: string,
-        message: string,
-    ) {
-        super(status, { message });
-    }
-}
-
-const notFound = (what: string) => new ApiException(404, "not_found", `${what} not found`);
-
-/** Validates a JSON body with a zod schema, answering 400 with the first issue. */
-function json<T extends z.ZodType>(bodySchema: T) {
-    return validator("json", (value) => {
-        const result = bodySchema.safeParse(value);
-        if (!result.success) {
-            const issue = result.error.issues[0];
-            const field = issue?.path.join(".");
-            throw new ApiException(
-                400,
-                "invalid_request",
-                field ? `${field}: ${issue?.message}` : (issue?.message ?? "Invalid request"),
-            );
-        }
-        return result.data as z.output<T>;
-    });
-}
-
-const seconds = (date: Date) => Math.floor(date.getTime() / 1000);
 
 const toDomain = (d: typeof schema.domains.$inferSelect): Api.Domain => ({
     id: d.id,
@@ -104,6 +79,22 @@ const toAlias = (
     lastEmailAt: a.lastEmailAt ? seconds(a.lastEmailAt) : null,
 });
 
+const toApiKey = (
+    k: typeof schema.apiKeys.$inferSelect & {
+        destination: { email: string };
+        domain: { name: string } | null;
+    },
+): Api.ApiKey => ({
+    id: k.id,
+    name: k.name,
+    start: k.start,
+    destination: k.destination.email,
+    domain: k.domain?.name ?? null,
+    format: k.format,
+    createdAt: seconds(k.createdAt),
+    lastUsedAt: k.lastUsedAt ? seconds(k.lastUsedAt) : null,
+});
+
 const toUser = (u: typeof schema.user.$inferSelect): Api.User => ({
     id: u.id,
     email: u.email,
@@ -127,33 +118,6 @@ const domainSchema = z
     .regex(DOMAIN_PATTERN, "Must be a domain name like example.com");
 
 const descriptionSchema = z.string().max(500);
-
-const isAdmin = (p: Principal) => p.kind === "token" || p.user.role === "admin";
-
-/** Whether accounts may not create aliases with this local part. */
-function isReserved(env: Env, local: string) {
-    const mailFrom = getSettings(env).mailFrom;
-    const sender = mailFrom && /<([^<>]+)>|^\s*(\S+@\S+)\s*$/.exec(mailFrom);
-    const senderLocal = sender ? splitAddress(sender[1] ?? sender[2] ?? "")?.local : undefined;
-    return RESERVED_LOCAL_PARTS.has(local) || local === senderLocal?.toLowerCase();
-}
-
-/** The user_id of rows the caller owns (null: the token's own rows). */
-const ownerOf = (p: Principal) => (p.kind === "user" ? p.user.id : null);
-
-/** Relational-query filter for rows owned by the caller. */
-const owned = (p: Principal) => {
-    const owner = ownerOf(p);
-    return owner === null ? { userId: { isNull: true as const } } : { userId: owner };
-};
-
-function requireAdmin(p: Principal) {
-    if (!isAdmin(p)) throw new ApiException(403, "forbidden", "Only admins can do this");
-}
-
-function limitsFor(env: Env, p: Principal): Api.Limits | null {
-    return isAdmin(p) ? null : getSettings(env).limits;
-}
 
 const originOf = (c: Context) => new URL(c.req.url).origin;
 
@@ -467,6 +431,9 @@ v1.delete("/destinations/:id", async (c) => {
     if (await db.query.aliases.findFirst({ where: { destinationId: id } })) {
         throw new ApiException(409, "in_use", "Aliases still forward to this destination");
     }
+    if (await db.query.apiKeys.findFirst({ where: { destinationId: id } })) {
+        throw new ApiException(409, "in_use", "API keys still create aliases for this destination");
+    }
     await db.delete(schema.destinations).where(eq(schema.destinations.id, id));
     return c.body(null, 204);
 });
@@ -496,70 +463,9 @@ v1.post(
     async (c) => {
         const { db, principal } = c.var;
         const body = c.req.valid("json");
-        const address = normalizeAddress(body.address);
-        const parts = splitAddress(address);
-        if (!parts || !ALIAS_LOCAL_PART_PATTERN.test(parts.local)) {
-            throw new ApiException(
-                400,
-                "invalid_address",
-                "Alias names may use letters, digits, dots, underscores and hyphens",
-            );
-        }
-        const domain = await db.query.domains.findFirst({ where: { name: parts.domain } });
-        if (!domain || (!domain.shared && !isAdmin(principal))) {
-            throw new ApiException(
-                400,
-                "unknown_domain",
-                `Domain ${parts.domain} is not available`,
-            );
-        }
-        if (!isAdmin(principal) && isReserved(c.env, parts.local)) {
-            throw new ApiException(400, "reserved", `${parts.local}@ is reserved for admins`);
-        }
-        if (await db.query.aliases.findFirst({ where: { address } })) {
-            throw new ApiException(409, "already_exists", `Alias ${address} already exists`);
-        }
-        // Addresses of deleted aliases stay with their owner; admins may reuse them.
-        const retired = await db.query.retiredAddresses.findFirst({ where: { address } });
-        if (retired && retired.userId !== ownerOf(principal) && !isAdmin(principal)) {
-            throw new ApiException(
-                409,
-                "already_exists",
-                `Alias ${address} was used before and can't be created again`,
-            );
-        }
-        const limits = limitsFor(c.env, principal);
-        if (limits) {
-            const [row] = await db
-                .select({ total: count() })
-                .from(schema.aliases)
-                .where(eq(schema.aliases.userId, ownerOf(principal)!));
-            if ((row?.total ?? 0) >= limits.aliases) {
-                throw new ApiException(
-                    403,
-                    "limit_reached",
-                    `Accounts can have up to ${limits.aliases} aliases`,
-                );
-            }
-        }
         const destination = await findDestination(db, principal, body.destination);
-        if (retired) {
-            await db
-                .delete(schema.retiredAddresses)
-                .where(eq(schema.retiredAddresses.address, address));
-        }
-        const [alias] = await db
-            .insert(schema.aliases)
-            .values({
-                address,
-                userId: ownerOf(principal),
-                domainId: domain.id,
-                destinationId: destination.id,
-                description: body.description ?? "",
-                enabled: body.enabled ?? true,
-            })
-            .returning();
-        return c.json<Api.Alias>(toAlias({ ...alias!, destination }), 201);
+        const alias = await createAlias(c.env, db, principal, { ...body, destination });
+        return c.json<Api.Alias>(toAlias(alias), 201);
     },
 );
 
@@ -646,6 +552,95 @@ v1.patch(
     },
 );
 
+// API keys for password managers (see compat.ts). Managed with the admin
+// token or an account session, never with another key.
+
+/** Keys per account (and for the admin token). */
+export const MAX_API_KEYS = 20;
+
+const addressFormatSchema = z.object({
+    // "custom" names each alias by hand, which a key can't.
+    format: z.enum(AliasFormats).exclude(["custom"]),
+    characterCount: z.number().int().min(3).max(25).optional(),
+    wordCount: z.number().int().min(1).max(5).optional(),
+    separator: z
+        .string()
+        .regex(/^[._-]?$/, "Use ., _, - or nothing")
+        .optional(),
+    prefixFormat: z.enum(AliasPrefixFormats).exclude(["custom"]).optional(),
+});
+
+v1.get("/api-keys", async (c) => {
+    const rows = await c.var.db.query.apiKeys.findMany({
+        where: owned(c.var.principal),
+        with: { destination: true, domain: true },
+        orderBy: { createdAt: "asc" },
+    });
+    return c.json<Api.ApiKey[]>(rows.map(toApiKey));
+});
+
+v1.post(
+    "/api-keys",
+    json(
+        z.object({
+            name: z.string().trim().min(1).max(100),
+            destination: emailSchema,
+            domain: domainSchema.nullable(),
+            format: addressFormatSchema,
+        }),
+    ),
+    async (c) => {
+        const { db, principal } = c.var;
+        const body = c.req.valid("json");
+        const keys = await db.query.apiKeys.findMany({
+            where: owned(principal),
+            columns: { id: true },
+        });
+        if (keys.length >= MAX_API_KEYS) {
+            throw new ApiException(403, "limit_reached", `Up to ${MAX_API_KEYS} API keys`);
+        }
+        const destination = await findDestination(db, principal, body.destination);
+        let domain: typeof schema.domains.$inferSelect | null = null;
+        if (body.domain) {
+            domain = (await db.query.domains.findFirst({ where: { name: body.domain } })) ?? null;
+            if (!domain || (!domain.shared && !isAdmin(principal))) {
+                throw new ApiException(
+                    400,
+                    "unknown_domain",
+                    `Domain ${body.domain} is not available`,
+                );
+            }
+        }
+        const { key, keyHash, start } = await newApiKey();
+        const [row] = await db
+            .insert(schema.apiKeys)
+            .values({
+                userId: ownerOf(principal),
+                name: body.name,
+                keyHash,
+                start,
+                destinationId: destination.id,
+                domainId: domain?.id ?? null,
+                format: body.format,
+            })
+            .returning();
+        return c.json<Api.NewApiKey>(
+            { apiKey: toApiKey({ ...row!, destination, domain }), key },
+            201,
+        );
+    },
+);
+
+v1.delete("/api-keys/:id", async (c) => {
+    const { db, principal } = c.var;
+    const id = c.req.param("id");
+    if (!(await db.query.apiKeys.findFirst({ where: { id, ...owned(principal) } }))) {
+        throw notFound("API key");
+    }
+    await db.delete(schema.apiKeys).where(eq(schema.apiKeys.id, id));
+    return c.body(null, 204);
+});
+
 export const app = new Hono<{ Bindings: Env }>();
 
 // Bearer tokens, no cookies: any origin may call the API (the app runs in
@@ -654,7 +649,8 @@ app.use(
     "/api/*",
     cors({
         origin: "*",
-        allowHeaders: ["Authorization", "Content-Type"],
+        // Authentication: SimpleLogin's header for API keys (compat.ts).
+        allowHeaders: ["Authorization", "Authentication", "Content-Type", "Accept"],
         allowMethods: ["GET", "POST", "PATCH", "DELETE"],
         // The bearer plugin returns new session tokens in this header.
         exposeHeaders: ["set-auth-token"],
@@ -670,6 +666,7 @@ app.get("/api/info", (c) =>
             enabled: Boolean(c.env.AUTH_SECRET),
             publicSignups: Boolean(c.env.AUTH_SECRET) && getSettings(c.env).publicSignups,
         },
+        features: ["api_keys"],
     }),
 );
 
@@ -698,6 +695,8 @@ app.post("/api/verify-destination", json(z.object({ token: z.string() })), async
 });
 
 app.route("/api/v1", v1);
+app.route("/api/addy", addy);
+app.route("/api/simplelogin", simpleLogin);
 
 app.notFound((c) =>
     c.json<Api.ApiError>({ error: { code: "not_found", message: "Not found" } }, 404),

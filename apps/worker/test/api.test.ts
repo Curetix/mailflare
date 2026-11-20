@@ -11,6 +11,7 @@ describe("auth", () => {
             name: "mailflare",
             apiVersion: 1,
             accounts: { enabled: true, publicSignups: true },
+            features: ["api_keys"],
         });
     });
 
