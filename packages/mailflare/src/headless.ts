@@ -28,5 +28,5 @@ export type {
 } from "./api/cloudflare-types";
 export { StorageKeys } from "./storage/storage";
 export type { AliasSettings, AliasFormat, AliasPrefixFormat } from "./stores/alias-settings-store";
-export { generateAliasAddress, type GenerateAliasOptions } from "./utils/alias";
+export { generateAliasAddress, type GenerateAliasOptions } from "@mailflare/worker/alias-address";
 export { EMAIL_RULE_NAME_PREFIX, CLOUDFLARE_API_BASE_URL } from "./const";

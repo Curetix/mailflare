@@ -99,8 +99,11 @@ export {
 } from "./storage";
 
 // Utils
-export { generateAliasAddress, type GenerateAliasOptions } from "./utils/alias";
-export { randomString } from "./utils/random-string";
+export {
+    generateAliasAddress,
+    randomString,
+    type GenerateAliasOptions,
+} from "@mailflare/worker/alias-address";
 export { sort } from "./utils/sort";
 
 // Hooks

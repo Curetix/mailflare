@@ -1,14 +1,53 @@
+// Generated alias addresses (the local part), shared by the app and the
+// Worker, which creates aliases for password managers (see api/compat.ts).
+
 import { generate as randomWords } from "random-words";
 import { parse as parseDomain } from "tldts";
 
-import type { AliasSettings } from "../stores/alias-settings-store";
-import { randomString } from "./random-string";
+export const AliasFormats = ["characters", "words", "domain", "custom"] as const;
+export type AliasFormat = (typeof AliasFormats)[number];
 
-export type GenerateAliasOptions = Omit<AliasSettings, "destination"> & {
+export const AliasPrefixFormats = [
+    "none",
+    "domainWithoutExtension",
+    "domainWithExtension",
+    "fullDomain",
+    "custom",
+] as const;
+export type AliasPrefixFormat = (typeof AliasPrefixFormats)[number];
+
+/** How addresses are made up; the app keeps these as the user's defaults. */
+export type AddressFormat = {
+    format?: AliasFormat;
+    characterCount?: number;
+    wordCount?: number;
+    separator?: string;
+    prefixFormat?: AliasPrefixFormat;
+};
+
+export type GenerateAliasOptions = AddressFormat & {
     customPrefix?: string;
+    /** The website the alias is for, for the prefix and the "domain" format. */
     hostname?: string;
 };
 
+const DEFAULT_CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+export function randomString(length: number, charSet = DEFAULT_CHARSET): string {
+    if (charSet.length <= 0) return "";
+
+    const array = new Uint32Array(length);
+    crypto.getRandomValues(array);
+
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += charSet[(array[i] ?? 0) % charSet.length];
+    }
+
+    return result;
+}
+
+/** The local part of a new alias. */
 export function generateAliasAddress({
     format = "characters",
     characterCount = 5,

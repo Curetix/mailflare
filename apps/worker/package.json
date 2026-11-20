@@ -4,7 +4,8 @@
     "private": true,
     "type": "module",
     "exports": {
-        "./api": "./src/api/types.ts"
+        "./api": "./src/api/types.ts",
+        "./alias-address": "./src/alias-address.ts"
     },
     "scripts": {
         "dev": "node scripts/build-app.mjs --dev && wrangler d1 migrations apply DB --local && wrangler dev",
@@ -21,6 +22,8 @@
         "better-auth": "~1.7.23",
         "drizzle-orm": "1.0.0-rc.5",
         "hono": "^4.13.18",
+        "random-words": "^2.0.1",
+        "tldts": "^7.5.4",
         "zod": "^4.6.7"
     },
     "devDependencies": {
