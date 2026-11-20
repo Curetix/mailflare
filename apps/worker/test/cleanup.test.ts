@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { cleanup } from "../src/cleanup";
-import { signUp } from "./helpers";
+import { seedAlias, signUp } from "./helpers";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -17,6 +17,7 @@ describe("daily cleanup", () => {
     it("deletes expired links, sessions and old counters, and keeps the rest", async () => {
         const now = Date.now();
         await signUp("tidy@user.test");
+        const alias = await seedAlias("tidy@cleanup.test");
         const user = await env.DB.prepare("SELECT id FROM user WHERE email = ?")
             .bind("tidy@user.test")
             .first<{ id: string }>();
@@ -41,6 +42,12 @@ describe("daily cleanup", () => {
                 now - HOUR,
             ),
             sql(
+                "INSERT INTO delivery_issues (id, alias_id, kind, destination, reason, created_at) VALUES ('i-old', ?1, 'forwarded', 'me@inbox.test', 'x', ?2), ('i-new', ?1, 'forwarded', 'me@inbox.test', 'x', ?3)",
+                alias.id,
+                Math.floor((now - 31 * 24 * HOUR) / 1000),
+                Math.floor((now - HOUR) / 1000),
+            ),
+            sql(
                 "INSERT INTO send_usage (user_id, day, count) VALUES (?1, '2020-01-01', 3), (?1, ?2, 1)",
                 user!.id,
                 new Date(now).toISOString().slice(0, 10),
@@ -55,6 +62,7 @@ describe("daily cleanup", () => {
         // The session signing up created is still valid.
         expect(sessions.length).toBeGreaterThan(0);
         expect(await ids("rate_limit")).toEqual(["r-new"]);
+        expect(await ids("delivery_issues")).toEqual(["i-new"]);
         expect(await ids("send_usage", "day")).toEqual([new Date(now).toISOString().slice(0, 10)]);
     });
 });

@@ -43,6 +43,13 @@ A daily cron trigger deletes expired sign-in links and sessions, sign-ups
 nobody confirmed, old rate-limit and sending counters, and Message-ID mappings
 older than a year.
 
+With the `EMAIL` binding, it also mails each destination a summary, if since
+the last one any of its mail was forwarded unchanged because re-sending failed
+(the sender's real address shows, and replies don't go through the alias) or
+wasn't delivered at all. Each entry has the time, alias, sender, subject and
+the reason it failed. It comes from `MAIL_FROM`, like account emails; the
+entries are kept for 30 days.
+
 Re-sending to destinations verified in Cloudflare is free. Sending to anyone
 else (replies, and destinations of accounts) needs the Workers Paid plan and
 your domain onboarded for Email Sending.

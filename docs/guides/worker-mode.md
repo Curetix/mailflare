@@ -46,7 +46,9 @@ pnpm exec wrangler secret put ADMIN_TOKEN # paste your random string
 ```
 
 This needs Node.js 22.12 or newer and [pnpm](https://pnpm.io). The Worker also runs a daily
-cleanup of expired sign-in links and sessions (a cron trigger).
+cleanup of expired sign-in links and sessions (a cron trigger). At the same time, if it can send
+email (the `EMAIL` binding), it mails each inbox a summary of messages that were forwarded unchanged or not delivered since the last one, if
+there were any.
 
 ```bash
 # Later, to update:

@@ -13,6 +13,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { normalizeAddress, splitAddress } from "./addresses";
 import { authenticatedFromDomain, checkSender } from "./auth";
 import { createDb, type Db, schema } from "./db";
+import { recordIssue } from "./delivery-reports";
 import {
     getHeaders,
     parseAddressList,
@@ -319,7 +320,11 @@ async function deliverToOwner(
             return;
         } catch (error) {
             // Still deliver, just without reply-through-alias.
-            console.error(`Re-sending failed (${errorCode(error)}), forwarding instead`);
+            const reason = errorCode(error);
+            console.error(`Re-sending failed (${reason}), forwarding instead`);
+            await message.forward(destination, new Headers({ [ALIAS_HEADER]: alias.address }));
+            await recordIssue(db, alias, "forwarded", reason, message, parsed);
+            return;
         }
     }
     await message.forward(destination, new Headers({ [ALIAS_HEADER]: alias.address }));
@@ -396,8 +401,27 @@ export async function handleEmail(
         return;
     }
 
-    const raw = new Uint8Array(await new Response(message.raw).arrayBuffer());
-    const parsed = parseMessage(raw);
+    let parsed: ParsedMessage | null = null;
+    try {
+        parsed = parseMessage(new Uint8Array(await new Response(message.raw).arrayBuffer()));
+        await handleAliasMail(message, env, ctx, db, recipient, alias, parsed);
+    } catch (error) {
+        // Cloudflare turns the error into a failed delivery; the inbox hears of it in the summary.
+        console.error(`Handling mail for ${alias.address} failed: ${errorCode(error)}`);
+        await recordIssue(db, alias, "undelivered", errorCode(error), message, parsed);
+        throw error;
+    }
+}
+
+async function handleAliasMail(
+    message: ForwardableEmailMessage,
+    env: Env,
+    ctx: ExecutionContext,
+    db: Db,
+    recipient: { address: string; tag: string | null },
+    alias: AliasWithDestination,
+    parsed: ParsedMessage,
+) {
     const target = recipient.tag ? parseReverseTag(recipient.tag) : null;
 
     // Suspended accounts and unconfirmed inboxes get nothing, like disabled aliases.
