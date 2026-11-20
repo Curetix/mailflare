@@ -5,6 +5,8 @@
 // All data types are plain, JSON-serializable objects so they survive the
 // persisted query cache and session storage unchanged.
 
+import type { AddressFormat } from "@mailflare/worker/alias-address";
+
 export type BackendKind = "cloudflare" | "worker";
 
 /** What the user logged in with; enough to recreate the backend anywhere. */
@@ -95,6 +97,23 @@ export type AccountUser = {
 
 export type AccountUserChanges = Partial<Pick<AccountUser, "role" | "banned">>;
 
+/** A Worker key for password managers, which may only create aliases. */
+export type ApiKey = {
+    id: string;
+    name: string;
+    /** The key's first characters. */
+    start: string;
+    destination: string;
+    /** For tools that don't name a domain; null: the first one available. */
+    domain: string | null;
+    format: AddressFormat;
+    /** Unix seconds. */
+    createdAt: number;
+    lastUsedAt: number | null;
+};
+
+export type NewApiKey = Pick<ApiKey, "name" | "destination" | "domain" | "format">;
+
 /**
  * Domains and destinations the backend stores itself. Cloudflare keeps them in
  * its dashboard, so only the Worker backend offers this.
@@ -110,6 +129,10 @@ export interface DomainManagement {
     getAccount(): Promise<Account>;
     listUsers(): Promise<AccountUser[]>;
     updateUser(id: string, changes: AccountUserChanges): Promise<AccountUser>;
+    listApiKeys(): Promise<ApiKey[]>;
+    /** The new key's details, and the key itself, which is only shown now. */
+    createApiKey(key: NewApiKey): Promise<{ apiKey: ApiKey; key: string }>;
+    deleteApiKey(id: string): Promise<void>;
 }
 
 export interface AliasBackend {

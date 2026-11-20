@@ -28,6 +28,7 @@ import { AccountPage } from "./pages/account-page";
 import { AdminAccountsPage } from "./pages/admin-accounts-page";
 import { AdminDomainsPage } from "./pages/admin-domains-page";
 import { AliasesPage } from "./pages/aliases-page";
+import { ApiKeysPage } from "./pages/api-keys-page";
 import { ImportPage } from "./pages/import-page";
 import { InboxesPage } from "./pages/inboxes-page";
 import { SettingsPage } from "./pages/settings-page";
@@ -142,6 +143,7 @@ function AppRoutes() {
     const workerPages = url
         ? [
               <Route key="inboxes" path={PATHS.inboxes} component={InboxesPage} />,
+              <Route key="api-keys" path={PATHS.apiKeys} component={ApiKeysPage} />,
               <Route key="account" path={PATHS.account} component={AccountPage} />,
               <Route key="domains" path={PATHS.adminDomains} component={AdminDomainsPage} />,
               <Route key="accounts" path={PATHS.adminAccounts} component={AdminAccountsPage} />,

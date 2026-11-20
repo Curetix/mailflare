@@ -223,6 +223,10 @@
         "admin": {
             "title": "Admin",
             "description": "Domains and accounts of this Worker"
+        },
+        "api_keys": {
+            "description": "For password managers like Bitwarden",
+            "action": "Manage"
         }
     },
     "background": {
@@ -408,7 +412,8 @@
         "pages": "Pages",
         "cloudflare": "Cloudflare Email Routing",
         "tagline": "Email aliases on your own domains",
-        "import": "Import"
+        "import": "Import",
+        "api_keys": "API keys"
     },
     "alias_details": {
         "activity": "Activity",
@@ -428,5 +433,37 @@
             "denied": "Access wasn't granted. Allow it here, or in your browser's extension settings.",
             "allow": "Allow access"
         }
+    },
+    "api_keys": {
+        "title": "API keys",
+        "description": "Let password managers like Bitwarden create aliases as you sign up somewhere. A key can only create aliases, forwarding to the inbox you choose here.",
+        "create": "Create key",
+        "empty": "No keys yet.",
+        "error": "Could not load the keys: {error}",
+        "summary": "{start}… · to {destination} · {used}",
+        "last_used": "last used {date}",
+        "never_used": "never used",
+        "delete": "Delete",
+        "cancel": "Cancel",
+        "delete_title": "Delete this key?",
+        "delete_description": "Apps using “{name}” can't create aliases anymore. Their aliases stay.",
+        "deleted": "Key deleted",
+        "name": "Name",
+        "name_hint": "Where you use it, to tell keys apart.",
+        "domain": "Default domain",
+        "domain_hint": "For apps that don't ask for a domain. Bitwarden's addy.io setting has its own.",
+        "domain_any": "First available",
+        "prefix_hint": "Named after the website you're signing up on, when the app tells which one.",
+        "created_title": "Your new key",
+        "created_warning": "Copy the key now. It won't be shown again.",
+        "bitwarden_steps": "In Bitwarden, open the generator, choose Username, then Forwarded email alias, and enter:",
+        "bitwarden_service": "Service",
+        "bitwarden_domain": "Email domain",
+        "bitwarden_token": "API access token",
+        "bitwarden_url": "Self-host server URL",
+        "simplelogin_hint": "Apps that support SimpleLogin instead can use the same key with the server URL {url}.",
+        "copy": "Copy {what}",
+        "copied": "Copied",
+        "done": "Done"
     }
 }

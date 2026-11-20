@@ -136,6 +136,16 @@ export function SettingsPage() {
             ),
         },
         {
+            key: "api-keys",
+            title: tn("api_keys"),
+            description: t("api_keys.description"),
+            // The sidebar has it on wide screens.
+            hide: !lockedWorkerUrl || isWide,
+            action: (
+                <Button size="sm" label={t("api_keys.action")} onClick={() => navigate(PATHS.apiKeys)} />
+            ),
+        },
+        {
             key: "admin",
             title: t("admin.title"),
             description: t("admin.description"),
