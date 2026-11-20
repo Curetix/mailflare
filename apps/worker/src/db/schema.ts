@@ -163,6 +163,46 @@ export const verificationMails = sqliteTable(
     ],
 );
 
+/**
+ * Mail the Worker could not handle as usual, for the daily summary to the
+ * alias's inbox (see delivery-reports.ts). Deleted after 30 days.
+ */
+export const deliveryIssues = sqliteTable(
+    "delivery_issues",
+    {
+        id: id(),
+        aliasId: text("alias_id")
+            .notNull()
+            .references(() => aliases.id, { onDelete: "cascade" }),
+        /**
+         * "forwarded": re-sending failed, so it was forwarded unchanged.
+         * "undelivered": it did not reach the inbox at all.
+         */
+        kind: text("kind", { enum: ["forwarded", "undelivered"] }).notNull(),
+        /**
+         * The inbox the message was for, then: the summary goes there even if
+         * the alias forwards somewhere else by now.
+         */
+        destination: text("destination").notNull(),
+        /** The From address, to recognize the message by. */
+        sender: text("sender").notNull().default(""),
+        subject: text("subject").notNull().default(""),
+        /** The error, e.g. "E_VALIDATION_ERROR: …". */
+        reason: text("reason").notNull(),
+        /** When it went out in a summary; null until then. */
+        reportedAt: integer("reported_at", { mode: "timestamp" }),
+        createdAt: createdAt(),
+    },
+    (t) => [
+        index("delivery_issues_alias").on(t.aliasId),
+        // The cleanup, which deletes by age alone.
+        index("delivery_issues_created").on(t.createdAt),
+        index("delivery_issues_unreported")
+            .on(t.destination, t.createdAt)
+            .where(sql`${t.reportedAt} IS NULL`),
+    ],
+);
+
 /** Messages each account sent from its aliases, per UTC day (for the daily limit). */
 export const sendUsage = sqliteTable(
     "send_usage",

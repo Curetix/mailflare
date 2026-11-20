@@ -19,7 +19,8 @@
     // Re-sends incoming mail (free to verified destinations) and sends from
     // aliases (arbitrary recipients: Workers Paid plan with a sending domain).
     "send_email": [{ "name": "EMAIL" }],
-    // Daily housekeeping: expired links, sessions and counters.
+    // Daily housekeeping (expired links, sessions and counters) and the summary
+    // of mail that was forwarded unchanged or not delivered.
     "triggers": { "crons": ["17 3 * * *"] },
     "d1_databases": [
         {

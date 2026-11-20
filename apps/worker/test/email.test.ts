@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDb, schema } from "../src/db";
+import { formatReport, LISTED_PER_KIND, sendDeliveryReports } from "../src/delivery-reports";
 import {
     ALIAS_HEADER,
     handleEmail,
@@ -521,5 +522,130 @@ describe("incoming mail, defensively", () => {
             .bind(alias.id)
             .first<{ n: number }>();
         expect(row?.n).toBe(MAX_CONTACTS_PER_MESSAGE);
+    });
+});
+
+describe("daily delivery summary", () => {
+    const INBOX = "summary@inbox.test";
+
+    type Issue = { kind: string; sender: string; subject: string; reason: string };
+    const issuesOf = async (aliasId: string, reported = false) => {
+        const { results } = await env.DB.prepare(
+            `SELECT kind, sender, subject, reason FROM delivery_issues WHERE alias_id = ? AND reported_at IS ${reported ? "NOT " : ""}NULL ORDER BY created_at, rowid`,
+        )
+            .bind(aliasId)
+            .all<Issue>();
+        return results;
+    };
+
+    /** Runs the summary with a recording (or failing) EMAIL binding; returns the mails to INBOX. */
+    async function report(mode: "ok" | "fail" = "ok") {
+        const mails: { to: string; subject: string; text: string }[] = [];
+        const send = vi.fn(async (mail: { to: string; subject: string; text: string }) => {
+            if (mode === "fail") throw new Error("send failed");
+            mails.push(mail);
+            return { messageId: "summary" };
+        });
+        // A little later, as the cron runs after the mail came in.
+        await sendDeliveryReports(
+            { ...env, EMAIL: { send } as unknown as SendEmail },
+            new Date(Date.now() + 2000),
+        );
+        return mails.filter((mail) => mail.to === INBOX);
+    }
+
+    it("records mail that was forwarded unchanged or not delivered at all", async () => {
+        const alias = await seedAlias("issues@summary.test", INBOX);
+        // Re-sending fails: forwarded unchanged.
+        await receive(incoming({ to: alias.address, from: "Shop <news@shop.test>" }), "fail");
+        // Forwarding fails too: not delivered, and Cloudflare sees the error.
+        const lost = incoming({ to: alias.address, from: "bob@elsewhere.test" });
+        lost.forward.mockRejectedValueOnce(new Error("destination address not verified"));
+        await expect(receive(lost, "fail")).rejects.toThrow("not verified");
+
+        expect(await issuesOf(alias.id)).toEqual([
+            {
+                kind: "forwarded",
+                sender: "news@shop.test",
+                subject: "Hi",
+                reason: "E_DELIVERY_FAILED: boom",
+            },
+            {
+                kind: "undelivered",
+                sender: "bob@elsewhere.test",
+                subject: "Hi",
+                reason: "destination address not verified",
+            },
+        ]);
+    });
+
+    it("does not record mail handled as intended", async () => {
+        const alias = await seedAlias("fine@summary.test", INBOX);
+        await receive(incoming({ to: alias.address, from: "bob@elsewhere.test" }));
+        // Without the binding, forwarding is the setup, not a fallback.
+        await receive(incoming({ to: alias.address, from: "bob@elsewhere.test" }), "missing");
+        await api("PATCH", `/api/v1/aliases/${alias.id}`, { enabled: false });
+        await receive(incoming({ to: alias.address, from: "bob@elsewhere.test" }), "fail");
+        expect(await issuesOf(alias.id)).toEqual([]);
+    });
+
+    it("mails each inbox one summary, once, and keeps issues whose summary failed", async () => {
+        const alias = await seedAlias("digest@summary.test", INBOX);
+        for (const from of ["a@shop.test", "b@shop.test"]) {
+            await receive(incoming({ to: alias.address, from }), "fail");
+        }
+
+        expect(await report("fail")).toEqual([]);
+        expect(await issuesOf(alias.id)).toHaveLength(2);
+
+        const [mail, ...more] = await report();
+        expect(more).toEqual([]);
+        expect(mail?.subject).toContain("forwarded unchanged");
+        expect(mail?.text).toContain(`to ${alias.address}, from a@shop.test`);
+        expect(mail?.text).toContain("Reason: E_DELIVERY_FAILED: boom");
+        expect(await issuesOf(alias.id)).toEqual([]);
+        expect(await issuesOf(alias.id, true)).toHaveLength(2);
+
+        // Nothing new: no mail.
+        expect(await report()).toEqual([]);
+    });
+
+    it("reports to the inbox the mail was for, even if the alias moved since", async () => {
+        const alias = await seedAlias("moved@summary.test", INBOX);
+        await receive(incoming({ to: alias.address, from: "old@shop.test" }), "fail");
+        await api("POST", "/api/v1/destinations", { email: "new@inbox.test" });
+        await api("PATCH", `/api/v1/aliases/${alias.id}`, { destination: "new@inbox.test" });
+
+        const [mail, ...more] = await report();
+        expect(more).toEqual([]);
+        expect(mail?.text).toContain("from old@shop.test");
+        expect(await issuesOf(alias.id)).toEqual([]);
+    });
+});
+
+describe("delivery summary text", () => {
+    const row = (kind: "forwarded" | "undelivered", total: number, i: number) => ({
+        destination: "me@inbox.test",
+        kind,
+        alias: "shop@me.test",
+        sender: `s${i}@shop.test`,
+        subject: `Order ${i}`,
+        reason: "E_VALIDATION_ERROR: bare CR",
+        createdAt: 1_790_000_000 - i * 60,
+        total,
+    });
+
+    it("leads with mail that did not arrive and counts what isn't listed", () => {
+        const rows = [
+            ...Array.from({ length: LISTED_PER_KIND }, (_, i) => row("forwarded", 25, i)),
+            row("undelivered", 1, 0),
+        ];
+        const { subject, text } = formatReport(rows);
+        expect(subject).toBe("Mailflare: 1 message not delivered, 25 messages forwarded unchanged");
+        expect(text.indexOf("Not delivered (1)")).toBeLessThan(
+            text.indexOf("Forwarded unchanged (25)"),
+        );
+        expect(text).toContain("- and 5 more");
+        expect(text).toContain("Subject: Order 0");
     });
 });

@@ -5,6 +5,7 @@
 import { and, eq, lt } from "drizzle-orm";
 
 import { createDb, schema } from "./db";
+import { ISSUE_RETENTION_MS } from "./delivery-reports";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -30,6 +31,12 @@ export async function cleanup(env: Env, now = new Date()) {
         db
             .delete(schema.messageIds)
             .where(lt(schema.messageIds.createdAt, new Date(now.getTime() - 365 * DAY_MS))),
+        // Reported in the daily summary long since (or never, without the EMAIL binding).
+        db
+            .delete(schema.deliveryIssues)
+            .where(
+                lt(schema.deliveryIssues.createdAt, new Date(now.getTime() - ISSUE_RETENTION_MS)),
+            ),
         // Daily send limits only look at today (UTC).
         db
             .delete(schema.sendUsage)
