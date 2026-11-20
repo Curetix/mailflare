@@ -4,7 +4,6 @@ import { Grid } from "@astryxdesign/core/Grid";
 import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Link } from "@astryxdesign/core/Link";
-import { Section } from "@astryxdesign/core/Section";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { CHROME_DOWNLOAD_LINK, FIREFOX_DOWNLOAD_LINK, GITHUB_LINK } from "@mailflare/core/const";
@@ -151,18 +150,46 @@ export default function HomePage() {
                         your Cloudflare account.
                     </Text>
                 </VStack>
-                <HStack gap={3} justify="center" wrap="wrap">
-                    <Button variant="primary" size="lg" label="Download" href="#downloads" />
-                    <Button size="lg" label="Open Web App" href={WEB_APP_LINK} target="_blank" />
-                    <Button
-                        variant="ghost"
-                        size="lg"
-                        label="GitHub"
-                        icon={<TbBrandGithub />}
-                        href={GITHUB_LINK}
-                        target="_blank"
-                    />
-                </HStack>
+                <VStack id="downloads" gap={4} align="center" width="100%">
+                    {/* Side by side, or stacked at full width on narrow screens. */}
+                    <div style={storeButtons}>
+                        <div style={storeButton}>
+                            <Button
+                                variant="primary"
+                                size="lg"
+                                width="100%"
+                                label="Add to Chrome"
+                                icon={<TbBrandChrome />}
+                                href={CHROME_DOWNLOAD_LINK}
+                                target="_blank"
+                            />
+                        </div>
+                        <div style={storeButton}>
+                            <Button
+                                variant="primary"
+                                size="lg"
+                                width="100%"
+                                label="Add to Firefox"
+                                icon={<TbBrandFirefox />}
+                                href={FIREFOX_DOWNLOAD_LINK}
+                                target="_blank"
+                            />
+                        </div>
+                    </div>
+                    <Text type="supporting" color="secondary" justify="center" textWrap="balance">
+                        The Chrome version works in Edge, Brave, Opera and other Chromium browsers.
+                    </Text>
+                    <HStack gap={3} justify="center" wrap="wrap">
+                        <Button label="Open Web App" href={WEB_APP_LINK} target="_blank" />
+                        <Button
+                            variant="ghost"
+                            label="GitHub"
+                            icon={<TbBrandGithub />}
+                            href={GITHUB_LINK}
+                            target="_blank"
+                        />
+                    </HStack>
+                </VStack>
             </VStack>
 
             {/* Features */}
@@ -240,49 +267,6 @@ export default function HomePage() {
                 </Grid>
             </VStack>
 
-            {/* Downloads */}
-            <Section variant="muted" dividers={["top", "bottom"]} paddingBlock={10}>
-                <div id="downloads" style={{ scrollMarginTop: 32 }}>
-                    <HStack
-                        gap={10}
-                        align="center"
-                        wrap="wrap"
-                        justify="center"
-                        maxWidth={CONTENT_WIDTH}
-                        style={{ marginInline: "auto" }}
-                    >
-                        <VStack gap={3} style={{ flex: "1 1 360px" }}>
-                            <Heading level={2} type="display-3">
-                                Extension Downloads
-                            </Heading>
-                            <Text type="large" color="secondary">
-                                Install the extension from the Chrome Web Store for Chromium-based
-                                browsers (Chrome, Brave, Edge, Opera), or from Firefox Add-ons.
-                            </Text>
-                        </VStack>
-                        <VStack gap={3} style={{ flex: "0 1 240px" }}>
-                            <Button
-                                variant="primary"
-                                size="lg"
-                                width="100%"
-                                label="Chrome Web Store"
-                                icon={<TbBrandChrome />}
-                                href={CHROME_DOWNLOAD_LINK}
-                                target="_blank"
-                            />
-                            <Button
-                                size="lg"
-                                width="100%"
-                                label="Firefox"
-                                icon={<TbBrandFirefox />}
-                                href={FIREFOX_DOWNLOAD_LINK}
-                                target="_blank"
-                            />
-                        </VStack>
-                    </HStack>
-                </div>
-            </Section>
-
             {/* Footer */}
             <HStack
                 as="footer"
@@ -314,6 +298,18 @@ export default function HomePage() {
 }
 
 const accent = { color: "var(--color-accent)" } as const;
+
+const storeButtons = {
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 12,
+    width: "100%",
+    maxWidth: 440,
+} as const;
+
+// Two fit side by side from about 400px; below that, each takes the full width.
+const storeButton = { flex: "1 1 180px" } as const;
 
 const featureIcon = {
     display: "inline-flex",
