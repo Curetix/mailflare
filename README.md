@@ -1,8 +1,20 @@
 # Mailflare
 
+[![Chrome Web Store version](https://img.shields.io/chrome-web-store/v/aomfbgcabccoecaoimicmmkjdmdgcfpi?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/mailflare-email-alias-ext/aomfbgcabccoecaoimicmmkjdmdgcfpi)
+[![Firefox Add-ons version](https://img.shields.io/amo/v/mailflare?label=Firefox%20Add-ons)](https://addons.mozilla.org/firefox/addon/mailflare/)
+[![Latest release](https://img.shields.io/github/v/release/Curetix/mailflare)](https://github.com/Curetix/mailflare/releases/latest)
+
 Mailflare turns [Cloudflare Email Routing](https://developers.cloudflare.com/email-routing/) into
 your own email alias service, similar to SimpleLogin or addy.io, without third-party services or a
 mail server of your own.
+
+<p>
+  <a href="https://chromewebstore.google.com/detail/mailflare-email-alias-ext/aomfbgcabccoecaoimicmmkjdmdgcfpi"><img alt="Available in the Chrome Web Store" src="docs/assets/chrome-web-store.png" height="58"></a>
+  <a href="https://addons.mozilla.org/firefox/addon/mailflare/"><img alt="Get the add-on for Firefox" src="docs/assets/firefox-add-ons.png" height="58"></a>
+</p>
+
+The Chrome Web Store version also works in Edge, Brave, Opera and other Chromium browsers. No
+extension needed: open the web app at **[app.mailflare.cc](https://app.mailflare.cc)**.
 
 - **Browser extension** (Chrome, Edge, Firefox and other browsers): create an alias for the site
   you're on from the popup, the context menu or a button inside email fields.
