@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.0](https://github.com/Curetix/mailflare/compare/v2.0.0...v2.1.0) (2026-11-20)
+
+
+### Features
+
+* **worker:** daily summary of mail forwarded unchanged or not delivered ([#72](https://github.com/Curetix/mailflare/issues/72)) ([4f513a9](https://github.com/Curetix/mailflare/commit/4f513a9a606a3746b1ce017cac0886b7b7edfe1c))
+
+
+### Bug Fixes
+
+* **extension:** require Firefox 147, which the app's styles need ([0f65c88](https://github.com/Curetix/mailflare/commit/0f65c88b8a1763b65f203e5e74a868abb6d8e25c))
+* **worker:** keep the reverse address of a long alias within the limit ([#69](https://github.com/Curetix/mailflare/issues/69)) ([c0bd274](https://github.com/Curetix/mailflare/commit/c0bd2741700d23d65e1fb1b1cd133696eff603b0))
+* **worker:** read broken and split encoded words without failing ([#68](https://github.com/Curetix/mailflare/issues/68)) ([dc0578a](https://github.com/Curetix/mailflare/commit/dc0578af3992ef692e510573c583ed2e39c855ac))
+* **worker:** strip stray CRs from re-sent header values ([#70](https://github.com/Curetix/mailflare/issues/70)) ([bde36bf](https://github.com/Curetix/mailflare/commit/bde36bf3cba3a43fda6e95cc833db80845f82554))
+
 ## [2.0.0](https://github.com/Curetix/mailflare/compare/v1.5.5...v2.0.0) (2026-11-16)
 
 
