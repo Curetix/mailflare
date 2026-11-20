@@ -67,10 +67,14 @@ Repository variables, all optional:
 | Variable                | Default                                  |
 | ----------------------- | ---------------------------------------- |
 | `CHROME_EXTENSION_ID`   | `aomfbgcabccoecaoimicmmkjdmdgcfpi`       |
-| `FIREFOX_EXTENSION_ID`  | `{f0bdc9fa-a062-4424-baee-16530c53aa06}` |
+| `FIREFOX_EXTENSION_ID`  | `mailflare` (the slug, not the GUID¹)    |
 | `FIREFOX_CHANNEL`       | `listed`                                 |
 | `PAGES_APP_PROJECT`     | `mailflare-app`                          |
 | `PAGES_LANDING_PROJECT` | `mailflare-landing`                      |
+
+¹ publish-browser-extension removes the braces of a GUID like `{f0bdc9fa-…}`, and
+addons.mozilla.org doesn't find the add-on without them. The slug (or the add-on's numeric ID)
+works.
 
 ## One-time setup
 
