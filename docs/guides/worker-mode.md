@@ -9,18 +9,19 @@ domains, and the aliases live in the Worker's D1 database.
 
 ## Why use it
 
-|                          | Email Routing rules            | Worker mode                                            |
-| ------------------------ | ------------------------------ | ------------------------------------------------------ |
-| Aliases per domain       | 200 (Cloudflare's rule limit)  | No practical limit                                     |
-| Mail to unknown aliases  | Handled by your catch-all rule | Rejected                                               |
-| Mail to disabled aliases | Not forwarded                  | Rejected, and counted                                  |
-| Subaddressing            | Optional Cloudflare setting    | `alias+anything@` always reaches `alias@`              |
-| Filtering by alias       | By the `To` address            | Every forwarded mail has an `X-Mailflare-Alias` header |
-| Statistics               | No                             | Mail forwarded, blocked and sent per alias             |
-| Replies                  | From your real address         | From the alias                                         |
-| Other people             | No                             | Optional accounts on domains you share                 |
-| Setup                    | An API token                   | Deploy a Worker, then connect the app                  |
-| Cost                     | Free                           | Free within the Workers Free plan's daily limits       |
+|                          | Email Routing rules            | Worker mode                                                 |
+| ------------------------ | ------------------------------ | ----------------------------------------------------------- |
+| Aliases per domain       | 200 (Cloudflare's rule limit)  | No practical limit                                          |
+| Mail to unknown aliases  | Handled by your catch-all rule | Rejected                                                    |
+| Mail to disabled aliases | Not forwarded                  | Rejected, and counted                                       |
+| Subaddressing            | Optional Cloudflare setting    | `alias+anything@` always reaches `alias@`                   |
+| Filtering by alias       | By the `To` address            | Every forwarded mail has an `X-Mailflare-Alias` header      |
+| Statistics               | No                             | Mail forwarded, blocked and sent per alias                  |
+| Replies                  | From your real address         | From the alias                                              |
+| Other people             | No                             | Optional accounts on domains you share                      |
+| Password managers        | No                             | [Bitwarden and others](password-managers.md) create aliases |
+| Setup                    | An API token                   | Deploy a Worker, then connect the app                       |
+| Cost                     | Free                           | Free within the Workers Free plan's daily limits            |
 
 ## 1. Deploy the Worker
 
