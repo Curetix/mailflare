@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.2.0](https://github.com/Curetix/mailflare/compare/v2.1.0...v2.2.0) (2026-11-21)
+
+
+### Features
+
+* API keys for password managers (Bitwarden), with addy.io- and SimpleLogin-compatible endpoints ([06b6d58](https://github.com/Curetix/mailflare/commit/06b6d58d2b4a4d42fd50b199f071969b56021882))
+* **core:** API keys page in the Worker's app ([cad4463](https://github.com/Curetix/mailflare/commit/cad4463d21199f6f6a7e3eabfa8dd2605f44fd4a))
+* **worker:** API keys for password managers, with addy.io and SimpleLogin endpoints ([dae1fdd](https://github.com/Curetix/mailflare/commit/dae1fddcf49887f9ae21548350a6f88a560c04f1))
+
+
+### Bug Fixes
+
+* **worker:** review of API keys: atomic limits, retries, stricter key format ([094ec9f](https://github.com/Curetix/mailflare/commit/094ec9ff8bdea5937561f9ab563aba8e5ac797b8))
+
 ## [2.1.0](https://github.com/Curetix/mailflare/compare/v2.0.0...v2.1.0) (2026-11-20)
 
 
