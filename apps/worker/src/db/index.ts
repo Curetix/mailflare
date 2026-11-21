@@ -39,6 +39,15 @@ export const relations = defineRelations(schema, (r) => ({
             optional: false,
         }),
     },
+    apiKeys: {
+        user: r.one.user({ from: r.apiKeys.userId, to: r.user.id }),
+        destination: r.one.destinations({
+            from: r.apiKeys.destinationId,
+            to: r.destinations.id,
+            optional: false,
+        }),
+        domain: r.one.domains({ from: r.apiKeys.domainId, to: r.domains.id }),
+    },
     destinations: {
         user: r.one.user({ from: r.destinations.userId, to: r.user.id }),
         aliases: r.many.aliases(),

@@ -5,6 +5,7 @@ import {
     TbAt,
     TbFileImport,
     TbInbox,
+    TbKey,
     TbSettings,
     TbUserCircle,
     TbUsers,
@@ -33,6 +34,7 @@ export const PATHS = {
     adminAccounts: "/admin/accounts",
     settings: "/settings",
     import: "/import",
+    apiKeys: "/api-keys",
 } as const;
 
 /** Pages for the current connection. Management pages only exist in the Worker's own app. */
@@ -45,6 +47,12 @@ export function useNavItems(): NavItem[] {
     const items: (NavItem | false)[] = [
         { path: PATHS.aliases, label: t("aliases"), icon: <TbAt /> },
         isWorkerApp && { path: PATHS.inboxes, label: t("inboxes"), icon: <TbInbox /> },
+        isWorkerApp && {
+            path: PATHS.apiKeys,
+            label: t("api_keys"),
+            icon: <TbKey />,
+            isWideOnly: true,
+        },
         isWorkerApp &&
             !!account.data?.user && {
                 path: PATHS.account,

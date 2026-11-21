@@ -1,13 +1,20 @@
 // The HTTP API contract, shared with the app's Worker backend (type-only import).
 // Timestamps are Unix seconds.
 
+import type { ApiKeyFormat } from "../alias-address";
+
 export const API_VERSION = 1;
+
+/** Features a Worker has, for apps that may talk to older Workers. */
+export type Feature = "api_keys";
 
 export type ApiInfo = {
     name: "mailflare";
     apiVersion: number;
     /** Whether accounts are set up, and whether anyone may create one. */
     accounts: { enabled: boolean; publicSignups: boolean };
+    /** Missing on Workers from before it was added. */
+    features?: Feature[];
 };
 
 export type ApiError = {
@@ -83,6 +90,27 @@ export type CreateAlias = {
 };
 export type UpdateAlias = Partial<Pick<Alias, "destination" | "description" | "enabled">>;
 export type UpdateUser = { role?: Role; banned?: boolean };
+
+/**
+ * A key for password managers and other tools: it may only create aliases,
+ * through the addy.io- and SimpleLogin-compatible endpoints.
+ */
+export type ApiKey = {
+    id: string;
+    name: string;
+    /** The key's first characters. */
+    start: string;
+    /** Where its aliases forward to. */
+    destination: string;
+    /** For tools that don't name a domain; null: the first one available. */
+    domain: string | null;
+    format: ApiKeyFormat;
+    createdAt: number;
+    lastUsedAt: number | null;
+};
+export type CreateApiKey = Pick<ApiKey, "name" | "destination" | "domain" | "format">;
+/** The key itself is only in this response. */
+export type NewApiKey = { apiKey: ApiKey; key: string };
 
 /**
  * Body of `POST /api/v1/sessions`: the extension's `identity.getRedirectURL()`,

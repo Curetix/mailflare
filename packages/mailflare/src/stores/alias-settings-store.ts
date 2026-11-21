@@ -1,27 +1,18 @@
+import type { AddressFormat } from "@mailflare/worker/alias-address";
 import { create } from "zustand";
 
 import type { StorageAdapter } from "../storage/storage";
 import { StorageKeys } from "../storage/storage";
 
-export const AliasFormats = ["characters", "words", "domain", "custom"] as const;
-export type AliasFormat = (typeof AliasFormats)[number];
+export {
+    AliasFormats,
+    AliasPrefixFormats,
+    type AliasFormat,
+    type AliasPrefixFormat,
+} from "@mailflare/worker/alias-address";
 
-export const AliasPrefixFormats = [
-    "none",
-    "domainWithoutExtension",
-    "domainWithExtension",
-    "fullDomain",
-    "custom",
-] as const;
-export type AliasPrefixFormat = (typeof AliasPrefixFormats)[number];
-
-export type AliasSettings = {
+export type AliasSettings = AddressFormat & {
     domain?: string;
-    format?: AliasFormat;
-    characterCount?: number;
-    wordCount?: number;
-    separator?: string;
-    prefixFormat?: AliasPrefixFormat;
     destination?: string;
 };
 

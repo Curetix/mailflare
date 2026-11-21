@@ -154,7 +154,7 @@ in). Timestamps are Unix seconds. Errors look like
 
 | Method   | Path                              | Body or notes                                      |
 | -------- | --------------------------------- | -------------------------------------------------- |
-| `GET`    | `/api/info`                       | Public: `{ name, apiVersion, accounts }`           |
+| `GET`    | `/api/info`                       | Public: `{ name, apiVersion, accounts, features }` |
 | `GET`    | `/api/v1/me`                      | Role, account and limits                           |
 | `GET`    | `/api/v1/domains`                 | Accounts see shared domains                        |
 | `POST`   | `/api/v1/domains`                 | Admins: `{ name, shared? }`                        |
@@ -173,6 +173,23 @@ in). Timestamps are Unix seconds. Errors look like
 | `DELETE` | `/api/v1/session`                 | Signs out the calling session                      |
 | `GET`    | `/api/v1/users`                   | Admins                                             |
 | `PATCH`  | `/api/v1/users/:id`               | Admins: `{ role?, banned? }`; banning signs out    |
+| `GET`    | `/api/v1/api-keys`                | Keys for password managers (below)                 |
+| `POST`   | `/api/v1/api-keys`                | `{ name, destination, domain, format }`; the key   |
+|          |                                   | itself is only in this response                    |
+| `DELETE` | `/api/v1/api-keys/:id`            |                                                    |
+
+### Password managers
+
+API keys (`mf_…`) can only create aliases, through endpoints in the formats of
+addy.io and SimpleLogin, which password managers like Bitwarden support with a
+self-hosted server URL. Each key creates aliases as its owner, forwarding to
+the key's destination, with its address format; the website's name comes from
+the request. See [Password managers](../../docs/guides/password-managers.md).
+
+| Method | Path                                    | Auth                          | Body                      |
+| ------ | --------------------------------------- | ----------------------------- | ------------------------- |
+| `POST` | `/api/addy/api/v1/aliases`              | `Authorization: Bearer <key>` | `{ domain, description }` |
+| `POST` | `/api/simplelogin/api/alias/random/new` | `Authentication: <key>`       | `{ note }`, `?hostname=`  |
 
 The API also refuses changes that would create a mail loop: a destination on
 one of the Worker's own domains, or a domain that an existing destination

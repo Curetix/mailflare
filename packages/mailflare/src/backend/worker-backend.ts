@@ -7,6 +7,7 @@ import ky, { isHTTPError, type KyInstance } from "ky";
 import type {
     Account,
     AccountUser,
+    ApiKey,
     Alias,
     AliasBackend,
     AliasChanges,
@@ -64,6 +65,8 @@ const toUser = (user: Api.User): AccountUser => ({
     emailVerified: user.emailVerified,
     banned: user.banned,
 });
+
+const toApiKey = (key: Api.ApiKey): ApiKey => ({ ...key });
 
 const toDestination = (destination: Api.Destination): Destination => ({
     id: destination.id,
@@ -135,6 +138,18 @@ export class WorkerBackend implements AliasBackend {
             },
             listUsers: async () =>
                 (await call(this.http.get("users").json<Api.User[]>())).map(toUser),
+            listApiKeys: async () =>
+                (await call(this.http.get("api-keys").json<Api.ApiKey[]>())).map(toApiKey),
+            createApiKey: async (key) => {
+                const body: Api.CreateApiKey = key;
+                const created = await call(
+                    this.http.post("api-keys", { json: body }).json<Api.NewApiKey>(),
+                );
+                return { apiKey: toApiKey(created.apiKey), key: created.key };
+            },
+            deleteApiKey: async (id) => {
+                await call(this.http.delete(`api-keys/${encodeURIComponent(id)}`));
+            },
             updateUser: async (id, changes) => {
                 const body: Api.UpdateUser = changes;
                 return toUser(

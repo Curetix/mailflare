@@ -8,6 +8,7 @@ import {
     uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+import type { ApiKeyFormat } from "../alias-address";
 import { user } from "./auth-schema";
 
 export * from "./auth-schema";
@@ -161,6 +162,34 @@ export const verificationMails = sqliteTable(
         index("verification_mails_user").on(t.userId, t.createdAt),
         index("verification_mails_email").on(t.email, t.createdAt),
     ],
+);
+
+/**
+ * Keys for password managers and other tools, which may only create aliases
+ * (see api/compat.ts). Each key has its own destination, default domain and
+ * address format, chosen when it was made.
+ */
+export const apiKeys = sqliteTable(
+    "api_keys",
+    {
+        id: id(),
+        userId: ownerId(),
+        name: text("name").notNull(),
+        /** SHA-256 of the key, hex; the key itself is shown once. */
+        keyHash: text("key_hash").notNull().unique(),
+        /** The key's first characters, to tell keys apart. */
+        start: text("start").notNull(),
+        destinationId: text("destination_id")
+            .notNull()
+            .references(() => destinations.id, { onDelete: "cascade" }),
+        /** For tools that don't name a domain; null: the first one available. */
+        domainId: text("domain_id").references(() => domains.id, { onDelete: "set null" }),
+        /** The address format (alias-address.ts), JSON. */
+        format: text("format", { mode: "json" }).$type<ApiKeyFormat>().notNull(),
+        lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+        createdAt: createdAt(),
+    },
+    (t) => [index("api_keys_user").on(t.userId)],
 );
 
 /**

@@ -6,6 +6,7 @@ import { createBackend } from "./create-backend";
 import type {
     AccountUserChanges,
     Alias,
+    NewApiKey,
     AliasBackend,
     AliasChanges,
     Connection,
@@ -70,6 +71,7 @@ export const queryKeys = {
     destinations: () => [...queryKeys.all, "destinations"] as const,
     account: () => [...queryKeys.all, "account"] as const,
     users: () => [...queryKeys.all, "users"] as const,
+    apiKeys: () => [...queryKeys.all, "api-keys"] as const,
     aliases: (zoneId?: string | null) =>
         zoneId === undefined
             ? ([...queryKeys.all, "aliases"] as const)
@@ -292,4 +294,34 @@ export function useAccountUsers(enabled: boolean) {
     });
 
     return { users, updateUser };
+}
+
+/** The Worker's keys for password managers (of the account, or the admin token). */
+export function useApiKeys() {
+    const backend = useBackend();
+    const queryClient = useQueryClient();
+    const management = backend?.management;
+    const require = () => {
+        if (!management) throw new Error("This backend has no API keys");
+        return management;
+    };
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys() });
+
+    const apiKeys = useQuery({
+        queryKey: queryKeys.apiKeys(),
+        queryFn: () => require().listApiKeys(),
+        enabled: !!management,
+        // Keys get used outside the app: show the latest on every visit.
+        staleTime: 0,
+        networkMode: "online",
+    });
+    const createApiKey = useMutation({
+        mutationFn: (key: NewApiKey) => require().createApiKey(key),
+        onSuccess: invalidate,
+    });
+    const deleteApiKey = useMutation({
+        mutationFn: (id: string) => require().deleteApiKey(id),
+        onSuccess: invalidate,
+    });
+    return { apiKeys, createApiKey, deleteApiKey };
 }

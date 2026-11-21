@@ -9,6 +9,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { generateAliasAddress } from "@mailflare/worker/alias-address";
 import { memo, useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { TbRefresh } from "react-icons/tb";
@@ -25,7 +26,6 @@ import {
 } from "../stores/alias-settings-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { useUIStore } from "../stores/ui-store";
-import { generateAliasAddress } from "../utils/alias";
 
 type Props = {
     open: boolean;

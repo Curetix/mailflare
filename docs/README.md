@@ -23,6 +23,7 @@ browser or as a web app.
 - [Installation](guides/installation.md)
 - [API Token Setup](guides/api-token.md)
 - [Worker Mode](guides/worker-mode.md)
+- [Password Managers](guides/password-managers.md)
 - [Self-Hosting the Web App](guides/self-hosting.md)
 
 ## Features
