@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+    type AnySQLiteColumn,
     index,
     integer,
     primaryKey,
@@ -32,6 +33,15 @@ export const domains = sqliteTable("domains", {
     name: text("name").notNull().unique(),
     /** Whether every account may create aliases on it (otherwise admins only). */
     shared: integer("shared", { mode: "boolean" }).notNull().default(false),
+    /**
+     * Catch-all: mail to an address without an alias creates one, forwarding
+     * here, and owned by this destination's owner. Only on domains that aren't
+     * shared. Null: unknown addresses are rejected.
+     */
+    catchAllDestinationId: text("catch_all_destination_id").references(
+        (): AnySQLiteColumn => destinations.id,
+        { onDelete: "set null" },
+    ),
     createdAt: createdAt(),
 });
 
@@ -230,6 +240,26 @@ export const deliveryIssues = sqliteTable(
             .on(t.destination, t.createdAt)
             .where(sql`${t.reportedAt} IS NULL`),
     ],
+);
+
+/**
+ * Aliases a domain's catch-all created per UTC day, for its daily limit, and
+ * addresses it turned away once the limit was reached (for the summary).
+ */
+export const catchAllDays = sqliteTable(
+    "catch_all_days",
+    {
+        domainId: text("domain_id")
+            .notNull()
+            .references(() => domains.id, { onDelete: "cascade" }),
+        /** YYYY-MM-DD, UTC. */
+        day: text("day").notNull(),
+        created: integer("created").notNull().default(0),
+        rejected: integer("rejected").notNull().default(0),
+        /** When the rejections went out in a summary. */
+        reportedAt: integer("reported_at", { mode: "timestamp" }),
+    },
+    (t) => [primaryKey({ columns: [t.domainId, t.day] })],
 );
 
 /** Messages each account sent from its aliases, per UTC day (for the daily limit). */

@@ -2,6 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 
+import type * as Api from "../src/api/types";
 import { createDb, schema } from "../src/db";
 import { formatReport, LISTED_PER_KIND, sendDeliveryReports } from "../src/delivery-reports";
 import {
@@ -12,7 +13,7 @@ import {
     MAX_CONTACTS_PER_MESSAGE,
     REJECT_REASON,
 } from "../src/email";
-import { api, seedAlias } from "./helpers";
+import { api, seedAlias, signUp } from "./helpers";
 
 type Alias = {
     id: string;
@@ -56,7 +57,7 @@ function incoming(options: { to: string; from: string; headers?: string[] }) {
 type Sent = { from: string; to: string };
 
 /** env with a recording EMAIL binding (or a failing one, or none). */
-function testEnv(mode: "ok" | "fail" | "missing" = "ok") {
+function testEnv(mode: "ok" | "fail" | "missing" = "ok", extra: Partial<Env> = {}) {
     const sent: Sent[] = [];
     const send = vi.fn(async (message: EmailMessage) => {
         if (mode === "fail") throw Object.assign(new Error("boom"), { code: "E_DELIVERY_FAILED" });
@@ -64,11 +65,15 @@ function testEnv(mode: "ok" | "fail" | "missing" = "ok") {
         return { messageId: "sent" };
     });
     const EMAIL = mode === "missing" ? undefined : ({ send } as unknown as SendEmail);
-    return { env: { ...env, EMAIL }, sent };
+    return { env: { ...env, EMAIL, ...extra }, sent };
 }
 
-async function receive(message: ReturnType<typeof incoming>, mode?: "ok" | "fail" | "missing") {
-    const test = testEnv(mode);
+async function receive(
+    message: ReturnType<typeof incoming>,
+    mode?: "ok" | "fail" | "missing",
+    extra?: Partial<Env>,
+) {
+    const test = testEnv(mode, extra);
     const ctx = createExecutionContext();
     await handleEmail(message, test.env, ctx);
     await waitOnExecutionContext(ctx);
@@ -647,5 +652,148 @@ describe("delivery summary text", () => {
         );
         expect(text).toContain("- and 5 more");
         expect(text).toContain("Subject: Order 0");
+    });
+});
+
+describe("catch-all", () => {
+    const INBOX = "catch@inbox.test";
+
+    /** An admin domain whose catch-all forwards to INBOX. */
+    async function catchAllDomain(name: string, destination = INBOX, token?: string) {
+        const domain = await api<Api.Domain>("POST", "/api/v1/domains", { name });
+        await api("POST", "/api/v1/destinations", { email: destination }, token);
+        const updated = await api<Api.Domain>(
+            "PATCH",
+            `/api/v1/domains/${domain.body.id}`,
+            { catchAll: destination },
+            token,
+        );
+        expect(updated.body.catchAll).toBe(destination);
+        return domain.body;
+    }
+
+    /** Mail from an authenticated sender. */
+    const signed = (to: string, from = "shop@store.test") =>
+        incoming({ to, from, headers: [cloudflarePass("store.test")] });
+
+    async function aliasesOf(domainId: string, token?: string) {
+        const { body } = await api<Api.Alias[]>(
+            "GET",
+            `/api/v1/aliases?domainId=${domainId}`,
+            undefined,
+            token,
+        );
+        return body;
+    }
+
+    it("creates an alias for the first mail to a new address, and delivers it", async () => {
+        const domain = await catchAllDomain("catch.test");
+        const { message, sent } = await receive(signed("newsletter@catch.test"));
+        expect(message.setReject).not.toHaveBeenCalled();
+        expect(sent).toEqual([{ from: "newsletter@catch.test", to: INBOX }]);
+        expect(await aliasesOf(domain.id)).toEqual([
+            expect.objectContaining({
+                address: "newsletter@catch.test",
+                destination: INBOX,
+                enabled: true,
+                forwardedCount: 1,
+                description: "Created by the catch-all for mail from shop@store.test",
+            }),
+        ]);
+        // The next mail goes to the alias as usual.
+        const again = await receive(signed("newsletter@catch.test"));
+        expect(again.sent).toHaveLength(1);
+        expect(await aliasesOf(domain.id)).toHaveLength(1);
+    });
+
+    it("rejects unauthenticated senders, deleted aliases, reserved names and subaddresses", async () => {
+        const domain = await catchAllDomain("strict.test");
+        const forged = await receive(incoming({ to: "x1@strict.test", from: "a@b.test" }));
+        expect(forged.message.setReject).toHaveBeenCalledWith(REJECT_REASON);
+
+        const old = await api<Api.Alias>("POST", "/api/v1/aliases", {
+            address: "old@strict.test",
+            destination: INBOX,
+        });
+        await api("DELETE", `/api/v1/aliases/${old.body.id}`);
+        for (const to of ["old@strict.test", "postmaster@strict.test", "base+tag@strict.test"]) {
+            const { message } = await receive(signed(to));
+            expect(message.setReject).toHaveBeenCalledWith(REJECT_REASON);
+        }
+        expect(await aliasesOf(domain.id)).toEqual([]);
+    });
+
+    it("leaves domains without a catch-all as they are", async () => {
+        await api("POST", "/api/v1/domains", { name: "plain.test" });
+        const { message } = await receive(signed("anything@plain.test"));
+        expect(message.setReject).toHaveBeenCalledWith(REJECT_REASON);
+    });
+
+    it("creates one alias for mail arriving at the same time", async () => {
+        const domain = await catchAllDomain("race.test");
+        const results = await Promise.all([1, 2, 3].map(() => receive(signed("same@race.test"))));
+        expect(results.flatMap((r) => r.sent)).toHaveLength(3);
+        expect(await aliasesOf(domain.id)).toHaveLength(1);
+    });
+
+    it("stops at the daily limit and mentions it in the next summary", async () => {
+        const domain = await catchAllDomain("limit.test", "limit@inbox.test");
+        const limited = { CATCH_ALL_PER_DAY: "2" };
+        for (const local of ["a", "b"]) {
+            const { message } = await receive(signed(`${local}@limit.test`), "ok", limited);
+            expect(message.setReject).not.toHaveBeenCalled();
+        }
+        const over = await receive(signed("c@limit.test"), "ok", limited);
+        expect(over.message.setReject).toHaveBeenCalledWith(REJECT_REASON);
+        expect(await aliasesOf(domain.id)).toHaveLength(2);
+
+        const mails: { to: string; subject: string; text: string }[] = [];
+        const send = vi.fn(async (mail: (typeof mails)[number]) => {
+            mails.push(mail);
+            return { messageId: "summary" };
+        });
+        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await sendDeliveryReports(
+            { ...env, ...limited, EMAIL: { send } as unknown as SendEmail },
+            tomorrow,
+        );
+        const mail = mails.find((m) => m.to === "limit@inbox.test");
+        expect(mail?.subject).toContain("catch-all limit reached");
+        expect(mail?.text).toContain("limit.test");
+        expect(mail?.text).toContain("1 address turned away");
+        expect(mail?.text).toContain("at most 2 aliases");
+    });
+
+    it("gives the alias to the inbox's owner, an admin account", async () => {
+        const token = await signUp("boss@admin.test");
+        const domain = await catchAllDomain("boss-catch.test", "boss@admin.test", token);
+        await receive(signed("mine@boss-catch.test"));
+        const theirs = await aliasesOf(domain.id, token);
+        expect(theirs.map((a) => a.address)).toEqual(["mine@boss-catch.test"]);
+        // Not the admin token's.
+        expect(await aliasesOf(domain.id)).toEqual([]);
+    });
+
+    it("isn't possible on shared domains, and keeps its inbox from being deleted", async () => {
+        const domain = await catchAllDomain("guarded.test", "guard@inbox.test");
+        const share = await api("PATCH", `/api/v1/domains/${domain.id}`, { shared: true });
+        expect(share.status).toBe(400);
+
+        const destinations = await api<Api.Destination[]>("GET", "/api/v1/destinations");
+        const guard = destinations.body.find((d) => d.email === "guard@inbox.test")!;
+        expect((await api("DELETE", `/api/v1/destinations/${guard.id}`)).status).toBe(409);
+
+        const off = await api<Api.Domain>("PATCH", `/api/v1/domains/${domain.id}`, {
+            catchAll: null,
+        });
+        expect(off.body.catchAll).toBeNull();
+        const shared = await api<Api.Domain>("PATCH", `/api/v1/domains/${domain.id}`, {
+            shared: true,
+        });
+        expect(shared.body.shared).toBe(true);
+        const again = await api("PATCH", `/api/v1/domains/${domain.id}`, {
+            catchAll: "guard@inbox.test",
+        });
+        expect(again.status).toBe(400);
     });
 });

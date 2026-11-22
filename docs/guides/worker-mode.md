@@ -12,7 +12,7 @@ domains, and the aliases live in the Worker's D1 database.
 |                          | Email Routing rules            | Worker mode                                                 |
 | ------------------------ | ------------------------------ | ----------------------------------------------------------- |
 | Aliases per domain       | 200 (Cloudflare's rule limit)  | No practical limit                                          |
-| Mail to unknown aliases  | Handled by your catch-all rule | Rejected                                                    |
+| Mail to unknown aliases  | Handled by your catch-all rule | Rejected, or creates the alias with a catch-all             |
 | Mail to disabled aliases | Not forwarded                  | Rejected, and counted                                       |
 | Subaddressing            | Optional Cloudflare setting    | `alias+anything@` always reaches `alias@`                   |
 | Filtering by alias       | By the `To` address            | Every forwarded mail has an `X-Mailflare-Alias` header      |
@@ -95,6 +95,19 @@ Creating, editing and deleting aliases then works the same as in the default mod
 quick-create button and the context menu. In the web app in a window at least 1280 pixels wide,
 selecting an alias opens it next to the list, with what it handled: mail forwarded, blocked and sent, and when the
 last one arrived.
+
+## Catch-all (optional)
+
+With a catch-all, any address on a domain works right away: sign up somewhere as
+`newsletter@your.domain`, and the first mail to it creates the alias. Under **Admin** → **Domains**,
+pick the inbox for a domain's catch-all.
+
+To keep spam to guessed addresses out, the catch-all only creates an alias when Cloudflare
+authenticated the sender, and at most 20 per domain and day (the `CATCH_ALL_PER_DAY` setting).
+After that, mail to new addresses is rejected for the rest of the day, and the next daily summary
+says so. It never creates `postmaster@` and other reserved names, `alias+tag@` addresses, or the
+address of an alias you deleted: deleted aliases stay deleted. Shared domains can't have a
+catch-all, since it wouldn't be clear whose the aliases are.
 
 ## 5. Accounts (optional)
 

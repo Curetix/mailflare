@@ -49,10 +49,13 @@ type Principal =
 
 type AppEnv = { Bindings: Env; Variables: { db: Db; principal: Principal } };
 
-const toDomain = (d: typeof schema.domains.$inferSelect): Api.Domain => ({
+const toDomain = (
+    d: typeof schema.domains.$inferSelect & { catchAllDestination: { email: string } | null },
+): Api.Domain => ({
     id: d.id,
     name: d.name,
     shared: d.shared,
+    catchAll: d.catchAllDestination?.email ?? null,
     createdAt: seconds(d.createdAt),
 });
 
@@ -302,6 +305,7 @@ v1.delete("/session", async (c) => {
 v1.get("/domains", async (c) => {
     const rows = await c.var.db.query.domains.findMany({
         ...(!isAdmin(c.var.principal) && { where: { shared: true } }),
+        with: { catchAllDestination: true },
         orderBy: { name: "asc" },
     });
     return c.json<Api.Domain[]>(rows.map(toDomain));
@@ -325,22 +329,46 @@ v1.post(
             .insert(schema.domains)
             .values({ name, shared: shared ?? false })
             .returning();
-        return c.json<Api.Domain>(toDomain(domain!), 201);
+        return c.json<Api.Domain>(toDomain({ ...domain!, catchAllDestination: null }), 201);
     },
 );
 
-v1.patch("/domains/:id", json(z.object({ shared: z.boolean().optional() })), async (c) => {
-    requireAdmin(c.var.principal);
-    const { db } = c.var;
-    const id = c.req.param("id");
-    const { shared } = c.req.valid("json");
-    if (shared !== undefined) {
-        await db.update(schema.domains).set({ shared }).where(eq(schema.domains.id, id));
-    }
-    const domain = await db.query.domains.findFirst({ where: { id } });
-    if (!domain) throw notFound("Domain");
-    return c.json<Api.Domain>(toDomain(domain));
-});
+v1.patch(
+    "/domains/:id",
+    json(z.object({ shared: z.boolean().optional(), catchAll: emailSchema.nullable().optional() })),
+    async (c) => {
+        requireAdmin(c.var.principal);
+        const { db, principal } = c.var;
+        const id = c.req.param("id");
+        const body = c.req.valid("json");
+        const current = await db.query.domains.findFirst({ where: { id } });
+        if (!current) throw notFound("Domain");
+        const shared = body.shared ?? current.shared;
+        let catchAllDestinationId = current.catchAllDestinationId;
+        if (body.catchAll !== undefined) {
+            catchAllDestinationId = body.catchAll
+                ? (await findDestination(db, principal, body.catchAll)).id
+                : null;
+        }
+        // Whose would the aliases be? On shared domains, accounts pick addresses.
+        if (shared && catchAllDestinationId) {
+            throw new ApiException(
+                400,
+                "shared_catch_all",
+                "Shared domains can't have a catch-all",
+            );
+        }
+        await db
+            .update(schema.domains)
+            .set({ shared, catchAllDestinationId })
+            .where(eq(schema.domains.id, id));
+        const domain = await db.query.domains.findFirst({
+            where: { id },
+            with: { catchAllDestination: true },
+        });
+        return c.json<Api.Domain>(toDomain(domain!));
+    },
+);
 
 v1.delete("/domains/:id", async (c) => {
     requireAdmin(c.var.principal);
@@ -430,6 +458,9 @@ v1.delete("/destinations/:id", async (c) => {
     }
     if (await db.query.aliases.findFirst({ where: { destinationId: id } })) {
         throw new ApiException(409, "in_use", "Aliases still forward to this destination");
+    }
+    if (await db.query.domains.findFirst({ where: { catchAllDestinationId: id } })) {
+        throw new ApiException(409, "in_use", "A domain's catch-all forwards to this destination");
     }
     if (await db.query.apiKeys.findFirst({ where: { destinationId: id } })) {
         throw new ApiException(409, "in_use", "API keys still create aliases for this destination");

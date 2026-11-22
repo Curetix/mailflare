@@ -56,6 +56,7 @@ const toZone = (domain: Api.Domain): Zone => ({
     id: domain.id,
     name: domain.name,
     shared: domain.shared,
+    catchAll: domain.catchAll,
 });
 
 const toUser = (user: Api.User): AccountUser => ({
@@ -121,6 +122,12 @@ export class WorkerBackend implements AliasBackend {
             },
             resendConfirmation: async (id) => {
                 await call(this.http.post(`destinations/${encodeURIComponent(id)}/verify`));
+            },
+            setDomainCatchAll: async (zoneId, catchAll) => {
+                const body: Api.UpdateDomain = { catchAll };
+                await call(
+                    this.http.patch(`domains/${encodeURIComponent(zoneId)}`, { json: body }),
+                );
             },
             setDomainShared: async (zoneId, shared) => {
                 const body: Api.UpdateDomain = { shared };

@@ -24,6 +24,8 @@ declare namespace Cloudflare {
         MAX_ALIASES_PER_USER?: string;
         MAX_DESTINATIONS_PER_USER?: string;
         MAX_SENDS_PER_DAY?: string;
+        /** Aliases each domain's catch-all may create per day (default 20). */
+        CATCH_ALL_PER_DAY?: string;
     }
 
     /** Types `exports` from "cloudflare:workers" (used by tests). */

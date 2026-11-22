@@ -20,6 +20,8 @@ export type Zone = {
     name: string;
     /** Worker: whether accounts may create aliases on it. */
     shared?: boolean;
+    /** Worker: the destination of the domain's catch-all, if it has one. */
+    catchAll?: string | null;
 };
 
 /** A domain aliases can be created on, and the zone it belongs to. */
@@ -126,6 +128,8 @@ export interface DomainManagement {
     /** Mails a new confirmation link to an unconfirmed destination. */
     resendConfirmation(id: string): Promise<void>;
     setDomainShared(zoneId: string, shared: boolean): Promise<void>;
+    /** Null turns the catch-all off. */
+    setDomainCatchAll(zoneId: string, destination: string | null): Promise<void>;
     getAccount(): Promise<Account>;
     listUsers(): Promise<AccountUser[]>;
     updateUser(id: string, changes: AccountUserChanges): Promise<AccountUser>;

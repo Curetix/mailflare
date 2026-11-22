@@ -233,6 +233,11 @@ export function useMailflare() {
     const resendConfirmation = useMutation({
         mutationFn: (id: string) => management().resendConfirmation(id),
     });
+    const setDomainCatchAll = useMutation({
+        mutationFn: ({ zoneId, destination }: { zoneId: string; destination: string | null }) =>
+            management().setDomainCatchAll(zoneId, destination),
+        onSuccess: invalidateSetup,
+    });
     const setDomainShared = useMutation({
         mutationFn: ({ zoneId, shared }: { zoneId: string; shared: boolean }) =>
             management().setDomainShared(zoneId, shared),
@@ -256,6 +261,7 @@ export function useMailflare() {
         removeDestination,
         resendConfirmation,
         setDomainShared,
+        setDomainCatchAll,
         selectedZoneId,
         setSelectedZoneId,
         zones,

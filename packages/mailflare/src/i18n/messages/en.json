@@ -297,7 +297,11 @@
         "unconfirmed": "Unconfirmed",
         "resend": "Resend link",
         "resent": "Sent a new confirmation link to {email}",
-        "limits": "Your account can have up to {aliases} aliases and {destinations} mailboxes, and send {sends} messages a day from aliases."
+        "limits": "Your account can have up to {aliases} aliases and {destinations} mailboxes, and send {sends} messages a day from aliases.",
+        "catch_all_label": "Catch-all of {domain}",
+        "catch_all_off": "No catch-all",
+        "catch_all_hint": "With a catch-all, mail to an address that has no alias yet creates it, forwarding to the inbox you pick, if Cloudflare authenticated the sender. By default up to 20 a day per domain (CATCH_ALL_PER_DAY). Shared domains can't have one.",
+        "catch_all": "Catch-all"
     },
     "account": {
         "sign_in": "Sign in",

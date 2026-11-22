@@ -14,6 +14,7 @@ import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { createDb, type Db, schema } from "./db";
 import { sendAccountEmail } from "./mailer";
 import { decodeWords, getHeader, parseAddressList, type ParsedMessage } from "./mime";
+import { getSettings } from "./settings";
 
 export type IssueKind = "forwarded" | "undelivered";
 
@@ -92,19 +93,38 @@ const SECTIONS: Record<IssueKind, { title: string; text: string }> = {
     },
 };
 
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+const plural = (count: number, word: string, words = `${word}s`) =>
+    `${count} ${count === 1 ? word : words}`;
 
 const utc = (seconds: number) =>
     `${new Date(seconds * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
-/** The summary for one inbox; `rows` hold at most LISTED_PER_KIND per kind, newest first. */
-export function formatReport(rows: Row[]): { subject: string; text: string } {
+/** A day a catch-all reached its limit and turned addresses away. */
+export type CatchAllRow = {
+    destination: string;
+    domainId: string;
+    domain: string;
+    /** YYYY-MM-DD, UTC. */
+    day: string;
+    rejected: number;
+};
+
+/**
+ * The summary for one inbox; `rows` hold at most LISTED_PER_KIND per kind,
+ * newest first; `catchAll` the days its catch-alls reached their limit.
+ */
+export function formatReport(
+    rows: Row[],
+    catchAll: CatchAllRow[] = [],
+    catchAllPerDay = 0,
+): { subject: string; text: string } {
     const counts = { undelivered: 0, forwarded: 0 };
     for (const row of rows) counts[row.kind] = row.total;
 
     const subject = [
         counts.undelivered && `${plural(counts.undelivered, "message")} not delivered`,
         counts.forwarded && `${plural(counts.forwarded, "message")} forwarded unchanged`,
+        catchAll.length > 0 && "catch-all limit reached",
     ]
         .filter(Boolean)
         .join(", ");
@@ -126,8 +146,25 @@ export function formatReport(rows: Row[]): { subject: string; text: string } {
         }
         lines.push("");
     }
-    lines.push("If the same reason keeps coming up, the Worker's email setup may need a look.");
-    return { subject: `Mailflare: ${subject}`, text: lines.join("\n") };
+    if (catchAll.length > 0) {
+        lines.push(
+            "Catch-all limit reached",
+            `A catch-all creates at most ${plural(catchAllPerDay, "alias", "aliases")} per domain ` +
+                "and day (CATCH_ALL_PER_DAY). After that, mail to new addresses was rejected:",
+            "",
+            ...catchAll.map(
+                (row) =>
+                    `- ${row.domain}, ${row.day}: ${plural(row.rejected, "address", "addresses")} turned away`,
+            ),
+            "",
+            "If these were your own sign-ups, raise the limit; otherwise someone is guessing addresses.",
+            "",
+        );
+    }
+    if (rows.length > 0) {
+        lines.push("If the same reason keeps coming up, the Worker's email setup may need a look.");
+    }
+    return { subject: `Mailflare: ${subject}`, text: lines.join("\n").trimEnd() };
 }
 
 /**
@@ -155,7 +192,17 @@ export async function sendDeliveryReports(env: Env, now = new Date()) {
         ) WHERE n <= ${LISTED_PER_KIND}
         ORDER BY destination, createdAt DESC
     `);
-    if (rows.length === 0) return;
+    // Finished days only: today's count may still grow.
+    const day = now.toISOString().slice(0, 10);
+    const catchAllRows = await db.all<CatchAllRow>(sql`
+        SELECT d.email AS destination, c.domain_id AS domainId, dm.name AS domain, c.day, c.rejected
+        FROM catch_all_days c
+        JOIN ${schema.domains} dm ON dm.id = c.domain_id
+        JOIN ${schema.destinations} d ON d.id = dm.catch_all_destination_id
+        WHERE c.rejected > 0 AND c.reported_at IS NULL AND c.day < ${day}
+        ORDER BY c.day
+    `);
+    if (rows.length === 0 && catchAllRows.length === 0) return;
     if (!env.EMAIL) {
         console.warn("Delivery issues to report, but the EMAIL binding is not set up");
         return;
@@ -163,9 +210,17 @@ export async function sendDeliveryReports(env: Env, now = new Date()) {
 
     // Each issue belongs to the inbox it was recorded for, whatever the alias does since.
     const byInbox = Map.groupBy(rows, (row) => row.destination);
-    for (const [destination, inboxRows] of byInbox) {
+    const catchAllByInbox = Map.groupBy(catchAllRows, (row) => row.destination);
+    const inboxes = new Set([...byInbox.keys(), ...catchAllByInbox.keys()]);
+    const { catchAllPerDay } = getSettings(env);
+    for (const destination of inboxes) {
+        const inboxRows = byInbox.get(destination) ?? [];
+        const inboxCatchAll = catchAllByInbox.get(destination) ?? [];
         try {
-            await sendAccountEmail(env, db, { to: destination, ...formatReport(inboxRows) });
+            await sendAccountEmail(env, db, {
+                to: destination,
+                ...formatReport(inboxRows, inboxCatchAll, catchAllPerDay),
+            });
         } catch (error) {
             console.error(`Could not send a delivery summary: ${String(error)}`);
             continue;
@@ -180,5 +235,16 @@ export async function sendDeliveryReports(env: Env, now = new Date()) {
                     eq(deliveryIssues.destination, destination),
                 ),
             );
+        for (const row of inboxCatchAll) {
+            await db
+                .update(schema.catchAllDays)
+                .set({ reportedAt: now })
+                .where(
+                    and(
+                        eq(schema.catchAllDays.domainId, row.domainId),
+                        eq(schema.catchAllDays.day, row.day),
+                    ),
+                );
+        }
     }
 }
