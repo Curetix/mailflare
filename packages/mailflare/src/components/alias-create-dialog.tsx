@@ -164,6 +164,19 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
         }
     }, [open]);
 
+    // Opened before the domains loaded (a link shared to the app as it starts):
+    // the default, once they're there.
+    useEffect(() => {
+        const list = domains.data;
+        if (!open || watchAll.domain !== "" || !list?.length) return;
+        const saved = aliasSettings.domain;
+        const zoneDomain = (list.find((d) => d.zoneId === selectedZoneId) ?? list[0])?.domain;
+        setValue(
+            "domain",
+            saved && list.some((d) => d.domain === saved) ? saved : (zoneDomain ?? ""),
+        );
+    }, [open, domains.data, watchAll.domain, aliasSettings.domain, selectedZoneId, setValue]);
+
     useEffect(() => {
         if (watchAll.destination === "" && confirmed.length > 0) {
             setValue("destination", confirmed[0]?.email ?? "");
@@ -313,10 +326,12 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
     const domainOptions = domains.data?.map((d) => ({ value: d.domain, label: d.domain })) ?? [];
     const destinationOptions = confirmed.map((d) => ({ value: d.email, label: d.email }));
 
+    // The extension knows the tab's website; the web app, one shared to it.
+    const hasWebsite = isExtension || !!hostname;
     const formatOptions = [
         { value: "characters", label: t("format_characters") },
         { value: "words", label: t("format_words") },
-        ...(isExtension ? [{ value: "domain", label: t("format_domain") }] : []),
+        ...(hasWebsite ? [{ value: "domain", label: t("format_domain") }] : []),
         { value: "custom", label: t("format_custom") },
     ];
 
@@ -329,7 +344,7 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
               ]
             : [
                   { value: "none", label: t("prefix_none") },
-                  ...(isExtension
+                  ...(hasWebsite
                       ? [
                             {
                                 value: "domainWithoutExtension",

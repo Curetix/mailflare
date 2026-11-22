@@ -41,12 +41,19 @@ The web app is a Progressive Web App (PWA) and can be installed on your device:
 Once installed, it opens like an app and shows cached data offline. New versions install
 themselves: the app reloads once when an update is ready.
 
+### Sharing a website to the app
+
+On Android and ChromeOS, the installed app appears in the share sheet. Share a page from your
+browser (or a link from any app) to Mailflare, and it opens the create dialog for that website:
+its name is the description, and the website-based formats and prefixes are available, as in the
+extension. iOS doesn't let web apps receive shares.
+
 ## Differences from the Extension
 
-| Feature                             | Extension | Web App |
-| ----------------------------------- | --------- | ------- |
-| Context menu alias generation       | ✅        | ❌      |
-| Quick-create button in email fields | ✅        | ❌      |
-| Website Domain alias format         | ✅        | ❌      |
-| Installable as a PWA                | ❌        | ✅      |
-| Works on any device                 | ❌        | ✅      |
+| Feature                             | Extension | Web App           |
+| ----------------------------------- | --------- | ----------------- |
+| Context menu alias generation       | ✅        | ❌                |
+| Quick-create button in email fields | ✅        | ❌                |
+| Website Domain alias format         | ✅        | Shared links only |
+| Installable as a PWA                | ❌        | ✅                |
+| Works on any device                 | ❌        | ✅                |

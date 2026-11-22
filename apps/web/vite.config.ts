@@ -24,6 +24,13 @@ export default defineConfig(({ mode }) => ({
                 theme_color: "#e8590c",
                 background_color: "#ffffff",
                 display: "standalone",
+                // Installed, the app shows up when sharing a link (Android,
+                // ChromeOS): it opens the create dialog for that website.
+                share_target: {
+                    action: "/share",
+                    method: "GET",
+                    params: { title: "title", text: "text", url: "url" },
+                },
                 icons: [
                     { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
                     { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
