@@ -12,6 +12,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { normalizeAddress, splitAddress } from "./addresses";
 import { authenticatedFromDomain, checkSender } from "./auth";
+import { catchAllDomain, createFromCatchAll } from "./catch-all";
 import { createDb, type Db, schema } from "./db";
 import { recordIssue } from "./delivery-reports";
 import {
@@ -395,16 +396,34 @@ export async function handleEmail(
 ): Promise<void> {
     const db = createDb(env.DB);
     const recipient = parseRecipient(message.to);
-    const alias = recipient ? await findAlias(db, recipient.address) : null;
+    let alias = recipient ? await findAlias(db, recipient.address) : null;
+    // The message can be read once: parsed here if the catch-all needs it.
+    let parsed: ParsedMessage | null = null;
+    const read = async () =>
+        (parsed ??= parseMessage(new Uint8Array(await new Response(message.raw).arrayBuffer())));
+
+    // Subaddresses only work for aliases that exist: not worth reading the message.
+    if (recipient && recipient.tag === null && !alias) {
+        const domain = await catchAllDomain(db, recipient.address);
+        if (domain && !isLooping(await read(), recipient.address)) {
+            const created = await createFromCatchAll(
+                env,
+                db,
+                domain,
+                recipient,
+                await read(),
+                message.from,
+            );
+            if (created) alias = await findAlias(db, created);
+        }
+    }
     if (!recipient || !alias) {
         message.setReject(REJECT_REASON);
         return;
     }
 
-    let parsed: ParsedMessage | null = null;
     try {
-        parsed = parseMessage(new Uint8Array(await new Response(message.raw).arrayBuffer()));
-        await handleAliasMail(message, env, ctx, db, recipient, alias, parsed);
+        await handleAliasMail(message, env, ctx, db, recipient, alias, await read());
     } catch (error) {
         // Cloudflare turns the error into a failed delivery; the inbox hears of it in the summary.
         console.error(`Handling mail for ${alias.address} failed: ${errorCode(error)}`);

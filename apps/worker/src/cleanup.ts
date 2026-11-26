@@ -37,6 +37,15 @@ export async function cleanup(env: Env, now = new Date()) {
             .where(
                 lt(schema.deliveryIssues.createdAt, new Date(now.getTime() - ISSUE_RETENTION_MS)),
             ),
+        // Catch-all counters: today's limit, and the summary of the days before.
+        db
+            .delete(schema.catchAllDays)
+            .where(
+                lt(
+                    schema.catchAllDays.day,
+                    new Date(now.getTime() - 30 * DAY_MS).toISOString().slice(0, 10),
+                ),
+            ),
         // Daily send limits only look at today (UTC).
         db
             .delete(schema.sendUsage)

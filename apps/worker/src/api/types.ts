@@ -42,6 +42,11 @@ export type Domain = {
     name: string;
     /** Whether every account may create aliases on it. */
     shared: boolean;
+    /**
+     * Catch-all: the destination that aliases created by mail to unknown
+     * addresses forward to; null when unknown addresses are rejected.
+     */
+    catchAll: string | null;
     createdAt: number;
 };
 
@@ -80,7 +85,8 @@ export type User = {
 };
 
 export type CreateDomain = { name: string; shared?: boolean };
-export type UpdateDomain = { shared?: boolean };
+/** `catchAll`: a destination of the caller's, or null to turn it off. */
+export type UpdateDomain = { shared?: boolean; catchAll?: string | null };
 export type CreateDestination = { email: string };
 export type CreateAlias = {
     address: string;

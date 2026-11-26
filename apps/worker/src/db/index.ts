@@ -31,6 +31,10 @@ export const relations = defineRelations(schema, (r) => ({
     },
     domains: {
         aliases: r.many.aliases(),
+        catchAllDestination: r.one.destinations({
+            from: r.domains.catchAllDestinationId,
+            to: r.destinations.id,
+        }),
     },
     reverseContacts: {
         alias: r.one.aliases({

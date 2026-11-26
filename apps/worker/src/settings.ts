@@ -29,5 +29,7 @@ export function getSettings(env: Env) {
             destinations: limit(env.MAX_DESTINATIONS_PER_USER, 5),
             sendsPerDay: limit(env.MAX_SENDS_PER_DAY, 50),
         },
+        /** Aliases a domain's catch-all may create per day. */
+        catchAllPerDay: limit(env.CATCH_ALL_PER_DAY, 20),
     };
 }

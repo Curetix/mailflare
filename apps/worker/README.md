@@ -28,6 +28,14 @@ To set it up and connect the Mailflare app, see the
   intact. Mail to a reverse address from anyone else, or that fails these
   checks, is delivered to the owner like any other mail.
 - **Subaddresses:** `alias+anything@domain` is delivered to `alias@domain`.
+- **Catch-all:** on a domain with a catch-all, the first mail to an address
+  that has no alias creates it, forwarding to the catch-all's destination and
+  owned by that destination's owner (an admin). Only if Cloudflare
+  authenticated the sender (DMARC, or SPF on the From domain), never for
+  reserved names, subaddresses or addresses of deleted aliases, and at most
+  `CATCH_ALL_PER_DAY` aliases per domain and UTC day. The daily summary
+  mentions days the limit turned addresses away. Shared domains can't have
+  one.
 - **Unknown or disabled alias:** rejected with the same "Address does not
   exist" reason, so senders can't tell which addresses exist. Mail to disabled
   aliases is counted as blocked.
@@ -104,6 +112,7 @@ deploys) or in `.dev.vars` for development:
 | `MAX_ALIASES_PER_USER`      | `100`                                | Per account without the admin role                              |
 | `MAX_DESTINATIONS_PER_USER` | `5`                                  |                                                                 |
 | `MAX_SENDS_PER_DAY`         | `50`                                 | Messages sent from aliases per account and UTC day              |
+| `CATCH_ALL_PER_DAY`         | `20`                                 | Aliases each domain's catch-all may create per UTC day          |
 
 Secrets: `ADMIN_TOKEN` and `AUTH_SECRET` (`wrangler secret put <name>`).
 
@@ -158,7 +167,7 @@ in). Timestamps are Unix seconds. Errors look like
 | `GET`    | `/api/v1/me`                      | Role, account and limits                           |
 | `GET`    | `/api/v1/domains`                 | Accounts see shared domains                        |
 | `POST`   | `/api/v1/domains`                 | Admins: `{ name, shared? }`                        |
-| `PATCH`  | `/api/v1/domains/:id`             | Admins: `{ shared? }`                              |
+| `PATCH`  | `/api/v1/domains/:id`             | Admins: `{ shared?, catchAll? }` (catch-all inbox) |
 | `DELETE` | `/api/v1/domains/:id`             | Admins; `409` while aliases use it                 |
 | `GET`    | `/api/v1/destinations`            |                                                    |
 | `POST`   | `/api/v1/destinations`            | `{ email }`; accounts get a confirmation email     |
