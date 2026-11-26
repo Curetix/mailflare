@@ -11,6 +11,7 @@ import { sessionFromCookie } from "../account/account-client";
 import { useAccountErrorMessage } from "../account/use-account-error";
 import { useCloudflareConfig } from "../api/config-context";
 import { useAuthStore } from "../stores/auth-store";
+import { useUIStore } from "../stores/ui-store";
 import { AccountLogin } from "./account-login";
 import {
     AuthorizePage,
@@ -91,6 +92,39 @@ function LinkPage({ url, Page }: { url: string; Page: typeof ResetPasswordPage }
     );
 }
 
+/** The website of the first web address in what was shared (browsers send `url`, many apps `text`). */
+export function sharedHostname(params: URLSearchParams): string {
+    for (const value of [params.get("url"), params.get("text"), params.get("title")]) {
+        const match = value?.match(/https?:\/\/[^\s<>"']+/i);
+        if (!match) continue;
+        try {
+            // Sentence punctuation after a bare link, as in "(see https://shop.example)."
+            return new URL(match[0].replace(/[)\]}.,;:!?]+$/, "")).hostname;
+        } catch {
+            // Not a valid address after all; look further.
+        }
+    }
+    return "";
+}
+
+/**
+ * `/share`: the installed web app is a share target (see the web app's
+ * manifest). Opens the create dialog for the shared website, after signing in
+ * if needed.
+ */
+function ShareRoute() {
+    const search = useSearch();
+    const [ready, setReady] = useState(false);
+    useEffect(() => {
+        const ui = useUIStore.getState();
+        ui.setHostname(sharedHostname(new URLSearchParams(search)));
+        ui.setCreateFormDraft(null);
+        ui.setCreateOpen(true);
+        setReady(true);
+    }, [search]);
+    return ready ? <Redirect to={PATHS.aliases} replace /> : null;
+}
+
 /** `/authorize`: the extension asks to connect (see AuthorizePage). */
 function AuthorizeRoute({ url, checking }: { url: string; checking: boolean }) {
     const t = useTranslations("account");
@@ -121,6 +155,8 @@ function AppRoutes() {
     const [location] = useLocation();
     const { checking } = useWorkerSession(url);
     useUpdateNotice();
+
+    if (location === "/share") return <ShareRoute />;
 
     if (url) {
         if (location === "/reset-password") return <LinkPage url={url} Page={ResetPasswordPage} />;
