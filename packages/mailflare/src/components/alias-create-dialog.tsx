@@ -9,7 +9,11 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { useToast } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { generateAliasAddress } from "@mailflare/worker/alias-address";
+import {
+    type AliasFormat,
+    type AliasPrefixFormat,
+    generateAliasAddress,
+} from "@mailflare/worker/alias-address";
 import { memo, useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { TbRefresh } from "react-icons/tb";
@@ -36,6 +40,27 @@ type Props = {
 const LOCAL_PART = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/i;
 const PREFIX = /^[a-z0-9._-]{1,32}$/i;
 
+const WEBSITE_PREFIXES: ReadonlySet<string> = new Set([
+    "domainWithoutExtension",
+    "domainWithExtension",
+    "fullDomain",
+]);
+
+/**
+ * Without a website, the format and prefixes made from one aren't offered
+ * (e.g. saved after a website was shared to the web app): plain ones instead.
+ */
+function withoutWebsite<T extends { format: AliasFormat; prefixFormat: AliasPrefixFormat }>(
+    values: T,
+): T {
+    const fromWebsite = values.format === "domain" || WEBSITE_PREFIXES.has(values.prefixFormat);
+    return {
+        ...values,
+        format: values.format === "domain" ? "characters" : values.format,
+        prefixFormat: fromWebsite ? "none" : values.prefixFormat,
+    };
+}
+
 // Memoized: the alias list re-renders often (selection, scrolling) while this stays closed.
 export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose }: Props) {
     const t = useTranslations("alias_create");
@@ -53,8 +78,11 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
     const updateAliasSettings = useAliasSettingsStore((s) => s.updateAliasSettings);
     const copyAlias = useSettingsStore((s) => s.copyAlias);
     const hostname = useUIStore((s) => s.hostname);
+    const setHostname = useUIStore((s) => s.setHostname);
     const createFormDraft = useUIStore((s) => s.createFormDraft);
     const setCreateFormDraft = useUIStore((s) => s.setCreateFormDraft);
+    // The extension knows the tab's website; the web app, one shared to it.
+    const hasWebsite = isExtension || !!hostname;
     const { isOnline } = useOnlineStatus();
 
     const [aliasPreview, setAliasPreview] = useState<string | null>(null);
@@ -106,6 +134,7 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
         handleSubmit,
         watch,
         setValue,
+        getValues,
         reset,
         formState: { errors },
     } = useForm<z.infer<typeof schema>>({
@@ -133,8 +162,13 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
             const zoneDomain =
                 (domains.data?.find((d) => d.zoneId === selectedZoneId) ?? domains.data?.[0])
                     ?.domain ?? "";
+            // Not loaded yet: kept until they are (see below).
             const domainOrZone = (domain: string | undefined) =>
-                domain && domains.data?.some((d) => d.domain === domain) ? domain : zoneDomain;
+                !domains.data
+                    ? (domain ?? "")
+                    : domain && domains.data.some((d) => d.domain === domain)
+                      ? domain
+                      : zoneDomain;
             const confirmedOrFirst = (email: string | undefined) =>
                 email && confirmed.some((d) => d.email === email)
                     ? email
@@ -142,7 +176,7 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
             if (createFormDraft) {
                 // Restore saved draft
                 reset({
-                    ...createFormDraft,
+                    ...(hasWebsite ? createFormDraft : withoutWebsite(createFormDraft)),
                     domain: domainOrZone(createFormDraft.domain),
                     destination: confirmedOrFirst(createFormDraft.destination),
                 });
@@ -150,7 +184,10 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
                 // Fresh form from settings
                 reset({
                     domain: domainOrZone(aliasSettings.domain),
-                    format: aliasSettings.format ?? "characters",
+                    format:
+                        hasWebsite || aliasSettings.format !== "domain"
+                            ? (aliasSettings.format ?? "characters")
+                            : "characters",
                     characterCount: aliasSettings.characterCount ?? 5,
                     wordCount: aliasSettings.wordCount ?? 2,
                     separator: aliasSettings.separator ?? "_",
@@ -165,17 +202,28 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
     }, [open]);
 
     // Opened before the domains loaded (a link shared to the app as it starts):
-    // the default, once they're there.
+    // the draft's or saved domain is checked, or the default set, once they're
+    // there. getValues: right after the reset above, watchAll is still the old.
     useEffect(() => {
         const list = domains.data;
-        if (!open || watchAll.domain !== "" || !list?.length) return;
+        if (!open || !list?.length) return;
+        const current = getValues("domain");
+        if (current && list.some((d) => d.domain === current)) return;
         const saved = aliasSettings.domain;
         const zoneDomain = (list.find((d) => d.zoneId === selectedZoneId) ?? list[0])?.domain;
         setValue(
             "domain",
             saved && list.some((d) => d.domain === saved) ? saved : (zoneDomain ?? ""),
         );
-    }, [open, domains.data, watchAll.domain, aliasSettings.domain, selectedZoneId, setValue]);
+    }, [
+        open,
+        domains.data,
+        watchAll.domain,
+        aliasSettings.domain,
+        selectedZoneId,
+        getValues,
+        setValue,
+    ]);
 
     useEffect(() => {
         if (watchAll.destination === "" && confirmed.length > 0) {
@@ -308,6 +356,8 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
                 onSuccess: (alias) => {
                     persistSettings();
                     setCreateFormDraft(null);
+                    // A website shared to the web app was for this alias only.
+                    if (!isExtension) setHostname("");
                     if (copyAlias) {
                         navigator.clipboard.writeText(alias.address);
                         toast({ body: t("created_and_copied") });
@@ -326,8 +376,6 @@ export const AliasCreateDialog = memo(function AliasCreateDialog({ open, onClose
     const domainOptions = domains.data?.map((d) => ({ value: d.domain, label: d.domain })) ?? [];
     const destinationOptions = confirmed.map((d) => ({ value: d.email, label: d.email }));
 
-    // The extension knows the tab's website; the web app, one shared to it.
-    const hasWebsite = isExtension || !!hostname;
     const formatOptions = [
         { value: "characters", label: t("format_characters") },
         { value: "words", label: t("format_words") },

@@ -98,7 +98,8 @@ export function sharedHostname(params: URLSearchParams): string {
         const match = value?.match(/https?:\/\/[^\s<>"']+/i);
         if (!match) continue;
         try {
-            return new URL(match[0]).hostname;
+            // Sentence punctuation after a bare link, as in "(see https://shop.example)."
+            return new URL(match[0].replace(/[)\]}.,;:!?]+$/, "")).hostname;
         } catch {
             // Not a valid address after all; look further.
         }
