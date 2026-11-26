@@ -1,7 +1,7 @@
 {
     "version": "7",
     "dialect": "sqlite",
-    "id": "32856a6f-ca5b-4408-9798-f969b9171029",
+    "id": "86683bcb-00e7-479a-9cf5-0ae3b37446fb",
     "prevIds": ["88c48db9-e7a9-4d8f-a7ec-686e4c247309"],
     "ddl": [
         {
@@ -329,6 +329,16 @@
             "notNull": true,
             "autoincrement": false,
             "default": "0",
+            "generated": null,
+            "entityType": "columns"
+        },
+        {
+            "table": "catch_all_days",
+            "name": "destination",
+            "type": "text",
+            "notNull": false,
+            "autoincrement": false,
+            "default": null,
             "generated": null,
             "entityType": "columns"
         },

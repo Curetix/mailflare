@@ -402,7 +402,8 @@ export async function handleEmail(
     const read = async () =>
         (parsed ??= parseMessage(new Uint8Array(await new Response(message.raw).arrayBuffer())));
 
-    if (recipient && !alias) {
+    // Subaddresses only work for aliases that exist: not worth reading the message.
+    if (recipient && recipient.tag === null && !alias) {
         const domain = await catchAllDomain(db, recipient.address);
         if (domain && !isLooping(await read(), recipient.address)) {
             const created = await createFromCatchAll(

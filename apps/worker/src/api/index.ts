@@ -341,27 +341,38 @@ v1.patch(
         const { db, principal } = c.var;
         const id = c.req.param("id");
         const body = c.req.valid("json");
-        const current = await db.query.domains.findFirst({ where: { id } });
-        if (!current) throw notFound("Domain");
-        const shared = body.shared ?? current.shared;
-        let catchAllDestinationId = current.catchAllDestinationId;
+        if (!(await db.query.domains.findFirst({ where: { id } }))) throw notFound("Domain");
+        const changes: Partial<typeof schema.domains.$inferInsert> = {};
+        if (body.shared !== undefined) changes.shared = body.shared;
         if (body.catchAll !== undefined) {
-            catchAllDestinationId = body.catchAll
+            changes.catchAllDestinationId = body.catchAll
                 ? (await findDestination(db, principal, body.catchAll)).id
                 : null;
         }
         // Whose would the aliases be? On shared domains, accounts pick addresses.
-        if (shared && catchAllDestinationId) {
-            throw new ApiException(
-                400,
-                "shared_catch_all",
-                "Shared domains can't have a catch-all",
-            );
+        // Only the fields sent change, and the check is part of the update, so
+        // requests at the same time can't undo each other or end up with both.
+        const sharedCatchAll = () =>
+            new ApiException(400, "shared_catch_all", "Shared domains can't have a catch-all");
+        if (changes.shared && changes.catchAllDestinationId) throw sharedCatchAll();
+        if (Object.keys(changes).length > 0) {
+            const updated = await db
+                .update(schema.domains)
+                .set(changes)
+                .where(
+                    and(
+                        eq(schema.domains.id, id),
+                        changes.shared && changes.catchAllDestinationId === undefined
+                            ? isNull(schema.domains.catchAllDestinationId)
+                            : undefined,
+                        changes.catchAllDestinationId && changes.shared === undefined
+                            ? eq(schema.domains.shared, false)
+                            : undefined,
+                    ),
+                )
+                .returning({ id: schema.domains.id });
+            if (updated.length === 0) throw sharedCatchAll();
         }
-        await db
-            .update(schema.domains)
-            .set({ shared, catchAllDestinationId })
-            .where(eq(schema.domains.id, id));
         const domain = await db.query.domains.findFirst({
             where: { id },
             with: { catchAllDestination: true },

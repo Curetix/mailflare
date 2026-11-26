@@ -45,7 +45,9 @@ export function AdminDomainsPage() {
                         width={150}
                         options={catchAllOptions}
                         value={zone.catchAll ?? OFF}
-                        isDisabled={!isOnline || setDomainCatchAll.isPending}
+                        isDisabled={
+                            !isOnline || setDomainCatchAll.isPending || setDomainShared.isPending
+                        }
                         onChange={(value) =>
                             setDomainCatchAll.mutate(
                                 { zoneId: zone.id, destination: value || null },
@@ -59,7 +61,13 @@ export function AdminDomainsPage() {
                     label={t("shared_label", { domain: zone.name })}
                     isLabelHidden
                     value={zone.shared ?? false}
-                    isDisabled={!isOnline || setDomainShared.isPending || !!zone.catchAll}
+                    // The two exclude each other: one change at a time.
+                    isDisabled={
+                        !isOnline ||
+                        setDomainShared.isPending ||
+                        setDomainCatchAll.isPending ||
+                        !!zone.catchAll
+                    }
                     onChange={(shared) =>
                         setDomainShared.mutate({ zoneId: zone.id, shared }, { onError })
                     }

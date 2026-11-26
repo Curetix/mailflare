@@ -746,6 +746,8 @@ describe("catch-all", () => {
         const over = await receive(signed("c@limit.test"), "ok", limited);
         expect(over.message.setReject).toHaveBeenCalledWith(REJECT_REASON);
         expect(await aliasesOf(domain.id)).toHaveLength(2);
+        // Turned off since: the summary still goes to the inbox it had then.
+        await api("PATCH", `/api/v1/domains/${domain.id}`, { catchAll: null });
 
         const mails: { to: string; subject: string; text: string }[] = [];
         const send = vi.fn(async (mail: (typeof mails)[number]) => {
@@ -762,6 +764,43 @@ describe("catch-all", () => {
         expect(mail?.text).toContain("limit.test");
         expect(mail?.text).toContain("1 address turned away");
         expect(mail?.text).toContain("at most 2 aliases");
+    });
+
+    it("only counts aliases it created toward the limit", async () => {
+        const domain = await catchAllDomain("quota.test", "quota@inbox.test");
+        const limited = { CATCH_ALL_PER_DAY: "2" };
+        // Not an alias name, and three messages to one new address.
+        const invalid = await receive(signed("-dash@quota.test"), "ok", limited);
+        expect(invalid.message.setReject).toHaveBeenCalledWith(REJECT_REASON);
+        const same = await Promise.all(
+            [1, 2, 3].map(() => receive(signed("same@quota.test"), "ok", limited)),
+        );
+        expect(same.flatMap((r) => r.sent)).toHaveLength(3);
+        // One alias so far, so one more fits.
+        const next = await receive(signed("next@quota.test"), "ok", limited);
+        expect(next.message.setReject).not.toHaveBeenCalled();
+        const over = await receive(signed("over@quota.test"), "ok", limited);
+        expect(over.message.setReject).toHaveBeenCalledWith(REJECT_REASON);
+        // Mail to an alias it created still arrives at the limit.
+        const again = await receive(signed("same@quota.test"), "ok", limited);
+        expect(again.sent).toHaveLength(1);
+        expect((await aliasesOf(domain.id)).map((a) => a.address).sort()).toEqual([
+            "next@quota.test",
+            "same@quota.test",
+        ]);
+    });
+
+    it("changes only the domain setting sent", async () => {
+        const domain = await catchAllDomain("fields.test", "fields@inbox.test");
+        const unshared = await api<Api.Domain>("PATCH", `/api/v1/domains/${domain.id}`, {
+            shared: false,
+        });
+        expect(unshared.body.catchAll).toBe("fields@inbox.test");
+        const both = await api<Api.Domain>("PATCH", `/api/v1/domains/${domain.id}`, {
+            shared: true,
+            catchAll: null,
+        });
+        expect(both.body).toMatchObject({ shared: true, catchAll: null });
     });
 
     it("gives the alias to the inbox's owner, an admin account", async () => {

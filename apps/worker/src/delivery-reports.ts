@@ -192,14 +192,15 @@ export async function sendDeliveryReports(env: Env, now = new Date()) {
         ) WHERE n <= ${LISTED_PER_KIND}
         ORDER BY destination, createdAt DESC
     `);
-    // Finished days only: today's count may still grow.
+    // Finished days only: today's count may still grow. To the inbox the
+    // catch-all had then, even if it was changed or turned off since.
     const day = now.toISOString().slice(0, 10);
     const catchAllRows = await db.all<CatchAllRow>(sql`
-        SELECT d.email AS destination, c.domain_id AS domainId, dm.name AS domain, c.day, c.rejected
+        SELECT c.destination, c.domain_id AS domainId, dm.name AS domain, c.day, c.rejected
         FROM catch_all_days c
         JOIN ${schema.domains} dm ON dm.id = c.domain_id
-        JOIN ${schema.destinations} d ON d.id = dm.catch_all_destination_id
-        WHERE c.rejected > 0 AND c.reported_at IS NULL AND c.day < ${day}
+        WHERE c.rejected > 0 AND c.destination IS NOT NULL AND c.reported_at IS NULL
+            AND c.day < ${day}
         ORDER BY c.day
     `);
     if (rows.length === 0 && catchAllRows.length === 0) return;

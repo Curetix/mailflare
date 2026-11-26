@@ -103,7 +103,7 @@ With a catch-all, any address on a domain works right away: sign up somewhere as
 pick the inbox for a domain's catch-all.
 
 To keep spam to guessed addresses out, the catch-all only creates an alias when Cloudflare
-authenticated the sender, and at most 20 per domain and day (the `CATCH_ALL_PER_DAY` setting).
+authenticated the sender, and at most `CATCH_ALL_PER_DAY` per domain and day (20 by default).
 After that, mail to new addresses is rejected for the rest of the day, and the next daily summary
 says so. It never creates `postmaster@` and other reserved names, `alias+tag@` addresses, or the
 address of an alias you deleted: deleted aliases stay deleted. Shared domains can't have a

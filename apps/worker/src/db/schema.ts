@@ -256,6 +256,8 @@ export const catchAllDays = sqliteTable(
         day: text("day").notNull(),
         created: integer("created").notNull().default(0),
         rejected: integer("rejected").notNull().default(0),
+        /** The inbox told about the rejections: the catch-all's when the last one happened. */
+        destination: text("destination"),
         /** When the rejections went out in a summary. */
         reportedAt: integer("reported_at", { mode: "timestamp" }),
     },
